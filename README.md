@@ -15,6 +15,12 @@
 
 </div>
 
+<div align="right">
+
+*如果这个项目对你有帮助，欢迎[赞赏支持](https://github.com/Huangwh826/halo-mcp-server#-支持项目) ☕*
+
+</div>
+
 ---
 
 ## 📖 简介
@@ -913,6 +919,25 @@ pytest tests/ -v --cov=halo-mcp-server
 - **项目主页**: [GitHub](https://github.com/Huangwh826/halo-mcp-server)
 - **问题反馈**: [Issues](https://github.com/Huangwh826/halo-mcp-server/issues)
 - **文档**: [Documentation](https://github.com/Huangwh826/halo-mcp-server/blob/main/README.md)
+
+---
+
+## 🎁 支持项目
+
+如果这个项目对你有帮助，欢迎通过以下方式支持：
+
+- ⭐ 给项目点个 Star
+- 🐛 提交 Issue 或 PR
+- 💬 分享给更多人
+- ☕ 赞赏作者
+
+<div align="center">
+
+<img src="sponsor.png" alt="赞赏码" width="300"/>
+
+*感谢您的支持！*
+
+</div>
 
 ---
 
