@@ -15,7 +15,7 @@
 
 </div>
 
-<div align="right">
+<div align="center">
 
 *如果这个项目对你有帮助，欢迎[赞赏支持](https://github.com/Huangwh826/halo-mcp-server#-支持项目) ☕*
 
@@ -28,6 +28,18 @@
 Halo MCP Server 是一个基于 Python 的 MCP 服务器，为 AI 助手提供完整的 Halo 博客管理能力。通过自然语言对话，你可以轻松完成文章创建、编辑、发布等所有博客管理操作，并利用 AI 的强大能力进行智能写作、内容优化和 SEO 提升。
 
 **注意**: Halo MCP Server 功能基本可用但未做全面测试，欢迎反馈和贡献（2025-10-24 ）
+
+### 🎬 视频演示
+
+<div align="center">
+
+[![观看视频演示](assets/video_cover.png)](https://www.bilibili.com/video/BV16osLzdEsc/)
+
+**📺 [点击观看完整演示视频](https://www.bilibili.com/video/BV16osLzdEsc/)** - B站
+
+*视频展示了如何通过自然语言与 AI 对话来管理 Halo 博客*
+
+</div>
 
 ### 🎯 核心价值
 
@@ -933,7 +945,7 @@ pytest tests/ -v --cov=halo-mcp-server
 
 <div align="center">
 
-<img src="sponsor.png" alt="赞赏码" width="300"/>
+<img src="assets/sponsor.png" alt="赞赏码" width="300"/>
 
 *感谢您的支持！*
 
@@ -944,7 +956,4 @@ pytest tests/ -v --cov=halo-mcp-server
 <div align="center">
 
 **⭐ 如果这个项目对你有帮助，请给它一个 Star！**
-
-Made with ❤️ by Halo MCP Contributors
-
 </div>
