@@ -1,6 +1,7 @@
 """Halo MCP Server - AI-powered content management for Halo blog system."""
 
-__version__ = "0.1.2"
+from halo_mcp_server._version import __version__
+
 __author__ = "Halo MCP Contributors"
 __license__ = "MIT"
 

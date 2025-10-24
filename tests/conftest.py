@@ -1,11 +1,26 @@
-"""Test configuration."""
+"""Pytest 配置文件
+
+提供测试 fixtures 和全局配置。
+"""
 
 import pytest
 
 
 @pytest.fixture
+async def halo_client():
+    """创建测试用 Halo 客户端"""
+    from halo_mcp_server.client.halo_client import HaloClient
+    
+    client = HaloClient()
+    await client.connect()
+    await client.authenticate()
+    yield client
+    await client.close()
+
+
+@pytest.fixture
 def mock_settings():
-    """Mock settings for testing."""
+    """Mock 配置用于单元测试"""
     from halo_mcp_server.config import Settings
 
     return Settings(

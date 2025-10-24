@@ -1,5 +1,6 @@
 include README.md
 include LICENSE
+include version.txt
 include pyproject.toml
 recursive-include src *.py
 recursive-include halo_apis_docs *.md *.json

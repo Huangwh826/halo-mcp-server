@@ -5,19 +5,28 @@
 [![Python Version](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![MCP](https://img.shields.io/badge/MCP-Compatible-orange.svg)](https://modelcontextprotocol.io)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)](https://github.com/Huangwh826/halo-mcp-server)
+[![PyPI Version](https://img.shields.io/pypi/v/halo-mcp-server.svg)](https://pypi.org/project/halo-mcp-server/)
+[![Downloads](https://img.shields.io/pypi/dm/halo-mcp-server.svg)](https://pypi.org/project/halo-mcp-server/)
 
 **让AI成为你的博客管理助手**
 
-通过 Model Context Protocol (MCP) 将 [Halo](https://www.halo.run/) 博客系统与 AI 助手（如 Claude）无缝集成
+通过 Model Context Protocol (MCP) 将 [Halo](https://www.halo.run/) 博客系统与 AI 助手（如 Claude、Curser、Qoder、Trae等）无缝集成
 
-[快速开始](#-快速开始) • [功能特性](#-功能特性) • [文档](#-文档) • [示例](#-使用示例) • [开发](#-开发)
+[快速开始](#-快速开始) • [功能特性](#-功能特性) • [使用示例](#-使用示例) • [文档](#-文档) • [开发](#-开发) • [测试](#-测试) • [贡献](#-贡献) • [支持项目](#-支持项目)
 
 </div>
 
 <div align="center">
 
 *如果这个项目对你有帮助，欢迎[赞赏支持](https://github.com/Huangwh826/halo-mcp-server#-支持项目) ☕*
+
+</div>
+
+<div align="center">
+
+<img src="assets/sponsor.png" alt="赞赏码" width="300"/>
+
+*感谢您的支持！*
 
 </div>
 
@@ -286,6 +295,10 @@ pip install halo-mcp-server
 
 ## 💬 使用示例
 
+> 📖 **完整示例文档**：查看 [examples/README.md](examples/README.md) 获取 6 个详细示例和完整代码
+> 
+> 🚀 **快速开始**：[quick_start_example.md](examples/quick_start_example.md) - 5分钟了解基本用法
+
 ### 🌟 自然语言交互（推荐）
 
 Halo MCP Server 的最大优势是支持自然语言对话，无需记忆复杂命令：
@@ -528,22 +541,65 @@ $ halo-cli create-post \
 
 ### API 文档
 
-| 文档 | 描述 |
-|------|------|
-| [Console API](halo_apis_docs/apis_console.json) | Halo 控制台 API |
-| [Public API](halo_apis_docs/apis_public.json) | Halo 公开 API |
-| [UC API](halo_apis_docs/apis_uc.json) | Halo 用户内容 API |
+| 文档                                                 | 描述 |
+|----------------------------------------------------|------|
+| [API 整理](halo_apis_docs/README.md)          | Halo API 整理 |
+| [Console API](halo_apis_docs/apis_console.json)    | Halo 控制台 API |
+| [Public API](halo_apis_docs/apis_public.json)      | Halo 公开 API |
+| [UC API](halo_apis_docs/apis_uc.json)              | Halo 用户内容 API |
 | [Extension API](halo_apis_docs/apis_extension.json) | Halo 扩展 API |
 
-### 示例代码
+### 📖 示例代码
 
-| 示例 | 描述 |
-|------|------|
-| [文章管理示例](examples/usage_examples.md) | 创建、编辑、发布文章 |
-| [分类管理示例](examples/category_management_examples.py) | 分类的增删改查 |
-| [标签管理示例](examples/tag_management_examples.py) | 标签的管理操作 |
-| [附件管理示例](examples/attachment_management_examples.py) | 文件上传和管理 |
-| [Prompts 示例](examples/mcp_prompts_examples.py) | AI写作助手使用 |
+> 💡 **完整示例指南**：查看 [examples/README.md](examples/README.md) 获取详细的示例文档和使用说明
+
+#### 📁 示例目录结构
+
+```
+examples/
+├── README.md                           # 📘 示例总览和详细指南
+├── quick_start_example.md              # ⚡ 快速开始（必读）
+├── usage_examples.md                   # 📚 使用示例合集
+├── category_management_examples.py     # 🏷️ 分类管理完整示例
+├── tag_management_examples.py          # 🔖 标签管理完整示例
+├── attachment_management_examples.py   # 📎 附件管理完整示例
+└── mcp_prompts_examples.py             # 🤖 AI写作助手示例
+```
+
+#### 🚀 快速开始
+
+**新手推荐路径**：
+1. 📖 [快速开始示例](examples/quick_start_example.md) - 5分钟了解基本用法
+2. 📚 [使用示例合集](examples/usage_examples.md) - 常见场景和最佳实践
+3. 📘 [完整示例指南](examples/README.md) - 所有示例的详细文档
+
+**按功能学习**：
+
+| 示例文件 | 功能 | 难度 | 说明 |
+|---------|------|------|------|
+| [quick_start_example.md](examples/quick_start_example.md) | 快速入门 | ⭐ | 实际调用示例，展示基本用法 |
+| [usage_examples.md](examples/usage_examples.md) | 综合示例 | ⭐⭐ | 涵盖所有工具的使用场景 |
+| [category_management_examples.py](examples/category_management_examples.py) | 分类管理 | ⭐⭐ | 279行完整代码示例 |
+| [tag_management_examples.py](examples/tag_management_examples.py) | 标签管理 | ⭐⭐ | 375行完整代码示例 |
+| [attachment_management_examples.py](examples/attachment_management_examples.py) | 附件管理 | ⭐⭐⭐ | 477行完整代码示例 |
+| [mcp_prompts_examples.py](examples/mcp_prompts_examples.py) | AI写作助手 | ⭐⭐⭐ | 341行Prompts使用示例 |
+
+#### 💡 使用提示
+
+- **Markdown 示例** (`.md`) - 适合阅读和理解，包含详细说明
+- **Python 示例** (`.py`) - 可直接运行的完整代码，包含注释
+- **从简到难** - 建议按上表顺序学习，逐步掌握所有功能
+
+**运行 Python 示例**：
+```bash
+# 1. 确保已配置环境变量
+export HALO_BASE_URL="your_url"
+export HALO_TOKEN="your_token"
+
+# 2. 运行示例（以分类管理为例）
+cd examples
+python category_management_examples.py
+```
 
 ---
 
@@ -802,6 +858,40 @@ pytest tests/ -v --cov=halo-mcp-server
 ### 贡献指南
 
 欢迎贡献！请查看 [DEVELOPMENT.md](DEVELOPMENT.md) 了解详细信息。
+
+---
+
+## 🧪 测试
+
+### 快速测试
+
+项目提供了全面的测试套件，覆盖所有 30 个 MCP 工具：
+
+```bash
+# 进入测试目录
+cd tests
+
+# 运行综合测试
+python run_comprehensive_test.py
+```
+
+### 测试覆盖
+
+✅ **分类管理** (6个工具): create_category, list_categories, get_category, update_category, get_category_posts, delete_category
+
+✅ **标签管理** (7个工具): create_tag, list_tags, get_tag, update_tag, list_console_tags, get_tag_posts, delete_tag
+
+✅ **附件管理** (8个工具): 上传、列表、删除、分组等
+
+✅ **文章管理** (9个工具): 创建、编辑、发布、草稿等
+
+### 测试详情
+
+查看 [tests/README.md](tests/README.md) 了解：
+- 📝 详细的测试指南
+- 🔧 环境配置说明
+- 🐛 故障排除方法
+- 📊 测试报告生成
 
 ---
 

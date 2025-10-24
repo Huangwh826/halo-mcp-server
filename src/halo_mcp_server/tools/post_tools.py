@@ -259,7 +259,7 @@ async def create_post_tool(client: HaloClient, args: Dict[str, Any]) -> str:
                 },
             },
             "content": {
-                "raw": content,  # Markdown 原文
+                "raw": markdown_to_html(content),  # Markdown 原文转换为HTML后的内容
                 "content": markdown_to_html(content),  # HTML 转换后的内容
                 "rawType": "HTML",
             },
@@ -360,7 +360,7 @@ async def update_post_tool(client: HaloClient, args: Dict[str, Any]) -> str:
 
             # 设置 content-json annotation (必须是 JSON 字符串)
             content_obj = {
-                "raw": content,  # Markdown 原文
+                "raw": html_content,  # HTML 内容（与content字段保持一致）
                 "content": html_content,  # HTML 内容
                 "rawType": "HTML",  # 原始类型
             }
@@ -520,7 +520,7 @@ async def update_post_draft_tool(client: HaloClient, args: Dict[str, Any]) -> st
             "spec": {
                 **current_draft.get("spec", {}),
                 "rawType": "HTML",
-                "rawPatch": content,  # 原始 Markdown 内容
+                "rawPatch": html_content,  # 转换后的HTML内容（与contentPatch保持一致）
                 "contentPatch": html_content,  # 转换后的 HTML 内容
                 "lastModifyTime": datetime.now().isoformat() + "Z",
             },
