@@ -1,4 +1,4 @@
-"""Category management tools for Halo MCP."""
+"""Halo MCP 分类管理工具"""
 
 import json
 from typing import Any, Dict, List, Optional
@@ -16,6 +16,7 @@ async def list_categories(
     size: int = 50,
     keyword: Optional[str] = None,
     sort: Optional[List[str]] = None,
+    client: Optional[HaloClient] = None,
 ) -> Dict[str, Any]:
     """
     列出所有分类。
@@ -33,7 +34,7 @@ async def list_categories(
         HaloMCPError: API 调用失败
     """
     try:
-        client = HaloClient()
+        client = client or HaloClient()
         await client.ensure_authenticated()
 
         params = {"page": page, "size": size}
@@ -47,10 +48,10 @@ async def list_categories(
         return response
 
     except Exception as e:
-        raise HaloMCPError(f"Failed to list categories: {e}")
+        raise HaloMCPError(f"获取分类列表失败：{e}")
 
 
-async def get_category(name: str) -> Dict[str, Any]:
+async def get_category(name: str, client: Optional[HaloClient] = None) -> Dict[str, Any]:
     """
     获取指定分类的详细信息。
 
@@ -64,14 +65,14 @@ async def get_category(name: str) -> Dict[str, Any]:
         HaloMCPError: API 调用失败
     """
     try:
-        client = HaloClient()
+        client = client or HaloClient()
         await client.ensure_authenticated()
 
         response = await client.get(f"/apis/content.halo.run/v1alpha1/categories/{name}")
         return response
 
     except Exception as e:
-        raise HaloMCPError(f"Failed to get category '{name}': {e}")
+        raise HaloMCPError(f"获取分类 '{name}' 失败：{e}")
 
 
 async def create_category(
@@ -84,6 +85,7 @@ async def create_category(
     hide_from_list: bool = False,
     prevent_parent_post_cascade_query: bool = False,
     children: Optional[List[str]] = None,
+    client: Optional[HaloClient] = None,
 ) -> Dict[str, Any]:
     """
     创建新分类。
@@ -106,7 +108,7 @@ async def create_category(
         HaloMCPError: API 调用失败
     """
     try:
-        client = HaloClient()
+        client = client or HaloClient()
         await client.ensure_authenticated()
 
         # 构建分类数据
@@ -142,7 +144,7 @@ async def create_category(
         return response
 
     except Exception as e:
-        raise HaloMCPError(f"Failed to create category: {e}")
+        raise HaloMCPError(f"创建分类失败：{e}")
 
 
 async def update_category(
@@ -156,6 +158,7 @@ async def update_category(
     hide_from_list: Optional[bool] = None,
     prevent_parent_post_cascade_query: Optional[bool] = None,
     children: Optional[List[str]] = None,
+    client: Optional[HaloClient] = None,
 ) -> Dict[str, Any]:
     """
     更新现有分类。
@@ -179,7 +182,7 @@ async def update_category(
         HaloMCPError: API 调用失败
     """
     try:
-        client = HaloClient()
+        client = client or HaloClient()
         await client.ensure_authenticated()
 
         # 先获取现有分类信息
@@ -214,10 +217,10 @@ async def update_category(
         return response
 
     except Exception as e:
-        raise HaloMCPError(f"Failed to update category '{name}': {e}")
+        raise HaloMCPError(f"更新分类 '{name}' 失败：{e}")
 
 
-async def delete_category(name: str) -> Dict[str, Any]:
+async def delete_category(name: str, client: Optional[HaloClient] = None) -> Dict[str, Any]:
     """
     删除分类。
 
@@ -231,14 +234,14 @@ async def delete_category(name: str) -> Dict[str, Any]:
         HaloMCPError: API 调用失败
     """
     try:
-        client = HaloClient()
+        client = client or HaloClient()
         await client.ensure_authenticated()
 
         response = await client.delete(f"/apis/content.halo.run/v1alpha1/categories/{name}")
         return response
 
     except Exception as e:
-        raise HaloMCPError(f"Failed to delete category '{name}': {e}")
+        raise HaloMCPError(f"删除分类 '{name}' 失败：{e}")
 
 
 async def get_category_posts(
@@ -246,6 +249,7 @@ async def get_category_posts(
     page: int = 0,
     size: int = 20,
     sort: Optional[List[str]] = None,
+    client: Optional[HaloClient] = None,
 ) -> Dict[str, Any]:
     """
     获取指定分类下的文章列表。
@@ -263,7 +267,7 @@ async def get_category_posts(
         HaloMCPError: API 调用失败
     """
     try:
-        client = HaloClient()
+        client = client or HaloClient()
 
         params = {"page": page, "size": size}
         if sort:
@@ -277,7 +281,7 @@ async def get_category_posts(
         return response
 
     except Exception as e:
-        raise HaloMCPError(f"Failed to get posts for category '{name}': {e}")
+        raise HaloMCPError(f"获取分类下文章失败：{e}")
 
 
 # MCP Tool 定义
@@ -476,14 +480,14 @@ CATEGORY_TOOLS = [
 
 async def list_categories_tool(client: HaloClient, args: Dict[str, Any]) -> str:
     """
-    Tool handler for listing categories.
+    工具处理器：列出分类。
 
-    Args:
-        client: Halo API client
-        args: Tool arguments
+    参数:
+        client: Halo API 客户端
+        args: 工具参数
 
-    Returns:
-        JSON string of categories list
+    返回:
+        分类列表的 JSON 字符串
     """
     try:
         page = args.get("page", 0)
@@ -491,96 +495,66 @@ async def list_categories_tool(client: HaloClient, args: Dict[str, Any]) -> str:
         keyword = args.get("keyword")
         sort = args.get("sort")
 
-        logger.debug(f"Listing categories: page={page}, size={size}, keyword={keyword}")
+        logger.debug(f"正在列出分类：page={page}, size={size}, keyword={keyword}")
 
-        result = await list_categories(page=page, size=size, keyword=keyword, sort=sort)
-
-        # Format the result for better readability
-        categories = result.get("items", [])
-        formatted_categories = []
-
-        for cat in categories:
-            spec = cat.get("spec", {})
-            metadata = cat.get("metadata", {})
-            status = cat.get("status", {})
-
-            formatted_cat = {
-                "name": metadata.get("name", ""),
-                "display_name": spec.get("displayName", ""),
-                "slug": spec.get("slug", ""),
-                "description": spec.get("description", ""),
-                "cover": spec.get("cover", ""),
-                "template": spec.get("template", ""),
-                "priority": spec.get("priority", 0),
-                "hide_from_list": spec.get("hideFromList", False),
-                "children": spec.get("children", []),
-                "post_count": status.get("postCount", 0),
-                "visible_post_count": status.get("visiblePostCount", 0),
-                "creation_timestamp": metadata.get("creationTimestamp", ""),
-                "permalink": status.get("permalink", ""),
-            }
-            formatted_categories.append(formatted_cat)
-
-        result["items"] = formatted_categories
-
+        result = await list_categories(
+            page=page, size=size, keyword=keyword, sort=sort, client=client
+        )
         return json.dumps(result, ensure_ascii=False, indent=2)
 
     except Exception as e:
-        logger.error(f"Error listing categories: {e}", exc_info=True)
-        error_result = ToolResult.error_result(f"Error: {str(e)}")
+        logger.error(f"列出分类出错：{e}", exc_info=True)
+        error_result = ToolResult.error_result(f"错误：{str(e)}")
         return error_result.model_dump_json()
 
 
 async def get_category_tool(client: HaloClient, args: Dict[str, Any]) -> str:
     """
-    Tool handler for getting category details.
+    工具处理器：获取分类详情。
 
-    Args:
-        client: Halo API client
-        args: Tool arguments
+    参数:
+        client: Halo API 客户端
+        args: 工具参数
 
-    Returns:
-        JSON string of category details
+    返回:
+        分类详情的 JSON 字符串
     """
     try:
         name = args.get("name")
         if not name:
-            error_result = ToolResult.error_result("Error: 'name' parameter is required")
+            error_result = ToolResult.error_result("错误：缺少参数 'name'")
             return error_result.model_dump_json()
 
-        logger.debug(f"Getting category: {name}")
+        logger.debug(f"正在获取分类：{name}")
 
-        result = await get_category(name)
+        result = await get_category(name, client=client)
         return json.dumps(result, ensure_ascii=False, indent=2)
 
     except Exception as e:
-        logger.error(f"Error getting category: {e}", exc_info=True)
-        error_result = ToolResult.error_result(f"Error: {str(e)}")
+        logger.error(f"获取分类出错：{e}", exc_info=True)
+        error_result = ToolResult.error_result(f"错误：{str(e)}")
         return error_result.model_dump_json()
 
 
 async def create_category_tool(client: HaloClient, args: Dict[str, Any]) -> str:
     """
-    Tool handler for creating a new category.
+    工具处理器：创建新分类。
 
-    Args:
-        client: Halo API client
-        args: Tool arguments
+    参数:
+        client: Halo API 客户端
+        args: 工具参数
 
-    Returns:
-        JSON string of operation result
+    返回:
+        操作结果的 JSON 字符串
     """
     try:
         display_name = args.get("display_name")
         if not display_name:
-            error_result = ToolResult.error_result("Error: 'display_name' parameter is required")
+            error_result = ToolResult.error_result("错误：缺少参数 'display_name'")
             return error_result.model_dump_json()
 
-        # Validate display_name length
         if len(display_name) > 100:
-            error_result = ToolResult.error_result(
-                "Error: Display name too long (max 100 characters)"
-            )
+            error_result = ToolResult.error_result("错误：显示名称过长（最大 100 字符）")
             return error_result.model_dump_json()
 
         slug = args.get("slug")
@@ -588,11 +562,8 @@ async def create_category_tool(client: HaloClient, args: Dict[str, Any]) -> str:
         cover = args.get("cover")
         template = args.get("template")
         priority = args.get("priority", 0)
-        hide_from_list = args.get("hide_from_list", False)
-        prevent_parent_post_cascade_query = args.get("prevent_parent_post_cascade_query", False)
-        children = args.get("children")
 
-        logger.debug(f"Creating category: {display_name}")
+        logger.debug(f"正在创建分类：{display_name}")
 
         result = await create_category(
             display_name=display_name,
@@ -601,39 +572,37 @@ async def create_category_tool(client: HaloClient, args: Dict[str, Any]) -> str:
             cover=cover,
             template=template,
             priority=priority,
-            hide_from_list=hide_from_list,
-            prevent_parent_post_cascade_query=prevent_parent_post_cascade_query,
-            children=children,
+            client=client,
         )
 
-        category_name = result.get("metadata", {}).get("name", "")
+        category_name = result.get("name", "")
         success_result = ToolResult.success_result(
-            f"✓ Category '{display_name}' created successfully!",
+            f"✓ 分类 '{display_name}' 创建成功！",
             data={"category_name": category_name, "display_name": display_name},
         )
         return success_result.model_dump_json()
 
     except Exception as e:
-        logger.error(f"Error creating category: {e}", exc_info=True)
-        error_result = ToolResult.error_result(f"Error: {str(e)}")
+        logger.error(f"创建分类出错：{e}", exc_info=True)
+        error_result = ToolResult.error_result(f"错误：{str(e)}")
         return error_result.model_dump_json()
 
 
 async def update_category_tool(client: HaloClient, args: Dict[str, Any]) -> str:
     """
-    Tool handler for updating a category.
+    工具处理器：更新分类。
 
-    Args:
-        client: Halo API client
-        args: Tool arguments
+    参数:
+        client: Halo API 客户端
+        args: 工具参数
 
-    Returns:
-        JSON string of operation result
+    返回:
+        操作结果的 JSON 字符串
     """
     try:
         name = args.get("name")
         if not name:
-            error_result = ToolResult.error_result("Error: 'name' parameter is required")
+            error_result = ToolResult.error_result("错误：缺少参数 'name'")
             return error_result.model_dump_json()
 
         display_name = args.get("display_name")
@@ -646,7 +615,7 @@ async def update_category_tool(client: HaloClient, args: Dict[str, Any]) -> str:
         prevent_parent_post_cascade_query = args.get("prevent_parent_post_cascade_query")
         children = args.get("children")
 
-        logger.debug(f"Updating category: {name}")
+        logger.debug(f"正在更新分类：{name}")
 
         result = await update_category(
             name=name,
@@ -659,81 +628,81 @@ async def update_category_tool(client: HaloClient, args: Dict[str, Any]) -> str:
             hide_from_list=hide_from_list,
             prevent_parent_post_cascade_query=prevent_parent_post_cascade_query,
             children=children,
+            client=client,
         )
 
-        updated_display_name = result.get("spec", {}).get("displayName", name)
         success_result = ToolResult.success_result(
-            f"✓ Category '{updated_display_name}' updated successfully!",
+            f"✓ 分类 '{name}' 更新成功！",
             data={"category_name": name, "updated": True},
         )
         return success_result.model_dump_json()
 
     except Exception as e:
-        logger.error(f"Error updating category: {e}", exc_info=True)
-        error_result = ToolResult.error_result(f"Error: {str(e)}")
+        logger.error(f"更新分类出错：{e}", exc_info=True)
+        error_result = ToolResult.error_result(f"错误：{str(e)}")
         return error_result.model_dump_json()
 
 
 async def delete_category_tool(client: HaloClient, args: Dict[str, Any]) -> str:
     """
-    Tool handler for deleting a category.
+    工具处理器：删除分类。
 
-    Args:
-        client: Halo API client
-        args: Tool arguments
+    参数:
+        client: Halo API 客户端
+        args: 工具参数
 
-    Returns:
-        JSON string of operation result
+    返回:
+        操作结果的 JSON 字符串
     """
     try:
         name = args.get("name")
         if not name:
-            error_result = ToolResult.error_result("Error: 'name' parameter is required")
+            error_result = ToolResult.error_result("错误：缺少参数 'name'")
             return error_result.model_dump_json()
 
-        logger.debug(f"Deleting category: {name}")
+        logger.debug(f"正在删除分类：{name}")
 
-        await delete_category(name)
+        await delete_category(name, client=client)
 
         success_result = ToolResult.success_result(
-            f"✓ Category '{name}' deleted successfully!",
+            f"✓ 分类 '{name}' 删除成功！",
             data={"category_name": name, "deleted": True},
         )
         return success_result.model_dump_json()
 
     except Exception as e:
-        logger.error(f"Error deleting category: {e}", exc_info=True)
-        error_result = ToolResult.error_result(f"Error: {str(e)}")
+        logger.error(f"删除分类出错：{e}", exc_info=True)
+        error_result = ToolResult.error_result(f"错误：{str(e)}")
         return error_result.model_dump_json()
 
 
 async def get_posts_under_category_tool(client: HaloClient, args: Dict[str, Any]) -> str:
     """
-    Tool handler for getting posts under a category.
+    工具处理器：获取分类下的文章。
 
-    Args:
-        client: Halo API client
-        args: Tool arguments
+    参数:
+        client: Halo API 客户端
+        args: 工具参数
 
-    Returns:
-        JSON string of posts list
+    返回:
+        文章列表的 JSON 字符串
     """
     try:
         name = args.get("name")
         if not name:
-            error_result = ToolResult.error_result("Error: 'name' parameter is required")
+            error_result = ToolResult.error_result("错误：缺少参数 'name'")
             return error_result.model_dump_json()
 
         page = args.get("page", 0)
         size = args.get("size", 20)
         sort = args.get("sort")
 
-        logger.debug(f"Getting posts under category: {name}, page={page}, size={size}")
+        logger.debug(f"正在获取分类下的文章：{name}, page={page}, size={size}")
 
-        result = await get_category_posts(name=name, page=page, size=size, sort=sort)
+        result = await get_category_posts(name=name, page=page, size=size, sort=sort, client=client)
         return json.dumps(result, ensure_ascii=False, indent=2)
 
     except Exception as e:
-        logger.error(f"Error getting posts under category: {e}", exc_info=True)
-        error_result = ToolResult.error_result(f"Error: {str(e)}")
+        logger.error(f"获取分类下文章出错：{e}", exc_info=True)
+        error_result = ToolResult.error_result(f"错误：{str(e)}")
         return error_result.model_dump_json()

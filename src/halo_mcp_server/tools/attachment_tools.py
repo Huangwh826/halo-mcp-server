@@ -1,4 +1,4 @@
-"""Attachment management tools for Halo MCP."""
+"""Halo MCP 附件管理工具"""
 
 """Attachment management tools for Halo MCP."""
 
@@ -22,6 +22,7 @@ async def list_attachments(
     accepts: Optional[List[str]] = None,
     group_name: Optional[str] = None,
     sort: Optional[List[str]] = None,
+    client: Optional[HaloClient] = None,
 ) -> Dict[str, Any]:
     """
     搜索和列出附件。
@@ -41,7 +42,7 @@ async def list_attachments(
         HaloMCPError: API 调用失败
     """
     try:
-        client = HaloClient()
+        client = client or HaloClient()
         await client.ensure_authenticated()
 
         params = {"page": page, "size": size}
@@ -60,10 +61,10 @@ async def list_attachments(
         return response
 
     except Exception as e:
-        raise HaloMCPError(f"Failed to list attachments: {e}")
+        raise HaloMCPError(f"获取附件列表失败：{e}")
 
 
-async def get_attachment(name: str) -> Dict[str, Any]:
+async def get_attachment(name: str, client: Optional[HaloClient] = None) -> Dict[str, Any]:
     """
     获取指定附件的详细信息。
 
@@ -77,20 +78,21 @@ async def get_attachment(name: str) -> Dict[str, Any]:
         HaloMCPError: API 调用失败
     """
     try:
-        client = HaloClient()
+        client = client or HaloClient()
         await client.ensure_authenticated()
 
         response = await client.get(f"/apis/storage.halo.run/v1alpha1/attachments/{name}")
         return response
 
     except Exception as e:
-        raise HaloMCPError(f"Failed to get attachment '{name}': {e}")
+        raise HaloMCPError(f"获取附件 '{name}' 失败：{e}")
 
 
 async def upload_attachment(
     file_path: str,
     policy_name: str = "default-policy",
     group_name: Optional[str] = None,
+    client: Optional[HaloClient] = None,
 ) -> Dict[str, Any]:
     """
     上传本地文件作为附件。
@@ -110,7 +112,7 @@ async def upload_attachment(
         if not os.path.exists(file_path):
             raise HaloMCPError(f"File not found: {file_path}")
 
-        client = HaloClient()
+        client = client or HaloClient()
         await client.ensure_authenticated()
 
         # 读取文件内容
@@ -123,6 +125,8 @@ async def upload_attachment(
         # 准备multipart/form-data数据
         files = {"file": (filename, file_content)}
 
+        uc_error_obj: Optional[Exception] = None
+
         # 尝试使用 UC API 上传（用户中心API）
         # 这个端点通常有更宽松的权限要求
         try:
@@ -133,6 +137,7 @@ async def upload_attachment(
             logger.info(f"Successfully uploaded via UC API: {filename}")
             return response
         except Exception as uc_error:
+            uc_error_obj = uc_error
             logger.warning(f"UC API upload failed: {uc_error}, trying Console API")
 
             # 如果UC API失败，尝试Console API
@@ -140,13 +145,19 @@ async def upload_attachment(
             if group_name:
                 data["groupName"] = group_name
 
-            response = await client.post(
-                "/apis/api.console.halo.run/v1alpha1/attachments/upload",
-                files=files,
-                data=data,
-            )
-            logger.info(f"Successfully uploaded via Console API: {filename}")
-            return response
+            try:
+                response = await client.post(
+                    "/apis/api.console.halo.run/v1alpha1/attachments/upload",
+                    files=files,
+                    data=data,
+                )
+                logger.info(f"Successfully uploaded via Console API: {filename}")
+                return response
+            except Exception as console_error:
+                # 合并两次失败的详细信息，便于定位问题
+                raise HaloMCPError(
+                    f"Failed to upload attachment. UC error: {uc_error_obj}; Console error: {console_error}"
+                )
 
     except Exception as e:
         raise HaloMCPError(f"Failed to upload attachment: {e}")
@@ -156,6 +167,7 @@ async def upload_attachment_from_url(
     url: str,
     policy_name: str = "default-policy",
     group_name: Optional[str] = None,
+    client: Optional[HaloClient] = None,
 ) -> Dict[str, Any]:
     """
     从 URL 上传附件。
@@ -172,34 +184,53 @@ async def upload_attachment_from_url(
         HaloMCPError: URL 无效或上传失败
     """
     try:
-        client = HaloClient()
+        client = client or HaloClient()
         await client.ensure_authenticated()
 
         # 从URL提取文件名
         filename = url.split("/")[-1].split("?")[0] or "downloaded_file"
 
-        # 使用 Console API
-        # 端点: POST /apis/api.console.halo.run/v1alpha1/attachments/-/upload-from-url
-        # 根据API文档，需要的参数：filename, groupName, policyName, url
-        upload_data = {
-            "url": url,
-            "filename": filename,  # API文档要求的参数
-            "policyName": policy_name,
-            "groupName": group_name if group_name else "",  # 空字符串，不是None
-        }
+        uc_error_obj: Optional[Exception] = None
 
-        response = await client.post(
-            "/apis/api.console.halo.run/v1alpha1/attachments/-/upload-from-url",
-            json=upload_data,
-        )
-        logger.info(f"Successfully uploaded from URL: {url}")
-        return response
+        # 先尝试 UC API（只需要 url 与可选 filename）
+        try:
+            response = await client.post(
+                "/apis/uc.api.storage.halo.run/v1alpha1/attachments/-/upload-from-url",
+                json={"url": url, "filename": filename},
+            )
+            logger.info(f"Successfully uploaded from URL via UC API: {url}")
+            return response
+        except Exception as uc_error:
+            uc_error_obj = uc_error
+            logger.warning(f"UC API upload-from-url failed: {uc_error}, trying Console API")
+
+        # UC 失败后，回退到 Console API
+        # Console 端点需要的参数：url、policyName，filename/groupName 可选
+        upload_data: Dict[str, Any] = {
+            "url": url,
+            "filename": filename,
+            "policyName": policy_name,
+        }
+        if group_name:
+            upload_data["groupName"] = group_name
+
+        try:
+            response = await client.post(
+                "/apis/api.console.halo.run/v1alpha1/attachments/-/upload-from-url",
+                json=upload_data,
+            )
+            logger.info(f"Successfully uploaded from URL via Console API: {url}")
+            return response
+        except Exception as console_error:
+            raise HaloMCPError(
+                f"Failed to upload attachment from URL. UC error: {uc_error_obj}; Console error: {console_error}"
+            )
 
     except Exception as e:
         raise HaloMCPError(f"Failed to upload attachment from URL: {e}")
 
 
-async def delete_attachment(name: str) -> Dict[str, Any]:
+async def delete_attachment(name: str, client: Optional[HaloClient] = None) -> Dict[str, Any]:
     """
     删除附件。
 
@@ -213,20 +244,21 @@ async def delete_attachment(name: str) -> Dict[str, Any]:
         HaloMCPError: API 调用失败
     """
     try:
-        client = HaloClient()
+        client = client or HaloClient()
         await client.ensure_authenticated()
 
         response = await client.delete(f"/apis/storage.halo.run/v1alpha1/attachments/{name}")
         return response
 
     except Exception as e:
-        raise HaloMCPError(f"Failed to delete attachment '{name}': {e}")
+        raise HaloMCPError(f"删除附件 '{name}' 失败：{e}")
 
 
 async def list_attachment_groups(
     page: int = 0,
     size: int = 100,
     sort: Optional[List[str]] = None,
+    client: Optional[HaloClient] = None,
 ) -> Dict[str, Any]:
     """
     列出附件分组。
@@ -243,7 +275,7 @@ async def list_attachment_groups(
         HaloMCPError: API 调用失败
     """
     try:
-        client = HaloClient()
+        client = client or HaloClient()
         await client.ensure_authenticated()
 
         params = {"page": page, "size": size}
@@ -254,11 +286,12 @@ async def list_attachment_groups(
         return response
 
     except Exception as e:
-        raise HaloMCPError(f"Failed to list attachment groups: {e}")
+        raise HaloMCPError(f"列出附件分组失败：{e}")
 
 
 async def create_attachment_group(
     display_name: str,
+    client: Optional[HaloClient] = None,
 ) -> Dict[str, Any]:
     """
     创建附件分组。
@@ -273,7 +306,7 @@ async def create_attachment_group(
         HaloMCPError: API 调用失败
     """
     try:
-        client = HaloClient()
+        client = client or HaloClient()
         await client.ensure_authenticated()
 
         group_data = {
@@ -291,10 +324,10 @@ async def create_attachment_group(
         return response
 
     except Exception as e:
-        raise HaloMCPError(f"Failed to create attachment group: {e}")
+        raise HaloMCPError(f"创建附件分组失败：{e}")
 
 
-async def get_attachment_policies() -> Dict[str, Any]:
+async def get_attachment_policies(client: Optional[HaloClient] = None) -> Dict[str, Any]:
     """
     获取存储策略列表。
 
@@ -305,14 +338,14 @@ async def get_attachment_policies() -> Dict[str, Any]:
         HaloMCPError: API 调用失败
     """
     try:
-        client = HaloClient()
+        client = client or HaloClient()
         await client.ensure_authenticated()
 
         response = await client.get("/apis/storage.halo.run/v1alpha1/policies")
         return response
 
     except Exception as e:
-        raise HaloMCPError(f"Failed to get attachment policies: {e}")
+        raise HaloMCPError(f"获取附件列表失败：{e}")
 
 
 # MCP Tool 定义
@@ -482,14 +515,14 @@ ATTACHMENT_TOOLS = [
 
 async def list_attachments_tool(client: HaloClient, args: Dict[str, Any]) -> str:
     """
-    Tool handler for listing attachments.
+    工具处理器：列出附件。
 
-    Args:
-        client: Halo API client
-        args: Tool arguments
+    参数:
+        client: Halo API 客户端
+        args: 工具参数
 
-    Returns:
-        JSON string of attachments list
+    返回:
+        附件列表的 JSON 字符串
     """
     try:
         page = args.get("page", 0)
@@ -499,237 +532,247 @@ async def list_attachments_tool(client: HaloClient, args: Dict[str, Any]) -> str
         group_name = args.get("group_name")
         sort = args.get("sort")
 
-        logger.debug(f"Listing attachments: page={page}, size={size}, keyword={keyword}")
+        logger.debug(
+            f"正在列出附件：page={page}, size={size}, keyword={keyword}, accepts={accepts}"
+        )
 
         result = await list_attachments(
-            page=page, size=size, keyword=keyword, accepts=accepts, group_name=group_name, sort=sort
+            page=page,
+            size=size,
+            keyword=keyword,
+            accepts=accepts,
+            group_name=group_name,
+            sort=sort,
+            client=client,
         )
         return json.dumps(result, ensure_ascii=False, indent=2)
 
     except Exception as e:
-        logger.error(f"Error listing attachments: {e}", exc_info=True)
-        error_result = ToolResult.error_result(f"Error: {str(e)}")
+        logger.error(f"列出附件出错：{e}", exc_info=True)
+        error_result = ToolResult.error_result(f"错误：{str(e)}")
         return error_result.model_dump_json()
 
 
 async def get_attachment_tool(client: HaloClient, args: Dict[str, Any]) -> str:
     """
-    Tool handler for getting attachment details.
+    工具处理器：获取附件详情。
 
-    Args:
-        client: Halo API client
-        args: Tool arguments
+    参数:
+        client: Halo API 客户端
+        args: 工具参数
 
-    Returns:
-        JSON string of attachment details
+    返回:
+        附件详情的 JSON 字符串
     """
     try:
         name = args.get("name")
         if not name:
-            error_result = ToolResult.error_result("Error: 'name' parameter is required")
+            error_result = ToolResult.error_result("错误：缺少参数 'name'")
             return error_result.model_dump_json()
 
-        logger.debug(f"Getting attachment: {name}")
+        logger.debug(f"正在获取附件：{name}")
 
-        result = await get_attachment(name)
+        result = await get_attachment(name, client=client)
         return json.dumps(result, ensure_ascii=False, indent=2)
 
     except Exception as e:
-        logger.error(f"Error getting attachment: {e}", exc_info=True)
-        error_result = ToolResult.error_result(f"Error: {str(e)}")
+        logger.error(f"获取附件出错：{e}", exc_info=True)
+        error_result = ToolResult.error_result(f"错误：{str(e)}")
         return error_result.model_dump_json()
 
 
 async def upload_attachment_tool(client: HaloClient, args: Dict[str, Any]) -> str:
     """
-    Tool handler for uploading attachment.
+    工具处理器：上传本地附件。
 
-    Args:
-        client: Halo API client
-        args: Tool arguments
+    参数:
+        client: Halo API 客户端
+        args: 工具参数
 
-    Returns:
-        JSON string of operation result
+    返回:
+        操作结果的 JSON 字符串
     """
     try:
         file_path = args.get("file_path")
         if not file_path:
-            error_result = ToolResult.error_result("Error: 'file_path' parameter is required")
+            error_result = ToolResult.error_result("错误：缺少参数 'file_path'")
             return error_result.model_dump_json()
 
         policy_name = args.get("policy_name", "default-policy")
         group_name = args.get("group_name")
 
-        logger.debug(f"Uploading attachment: {file_path}")
-
-        result = await upload_attachment(
-            file_path=file_path, policy_name=policy_name, group_name=group_name
+        logger.debug(
+            f"正在上传附件：file_path={file_path}, policy={policy_name}, group={group_name}"
         )
 
-        attachment_name = result.get("metadata", {}).get("name", "")
+        result = await upload_attachment(
+            file_path=file_path, policy_name=policy_name, group_name=group_name, client=client
+        )
+
+        logger.info(f"附件上传完成：{result}")
+
         success_result = ToolResult.success_result(
-            f"✓ Attachment uploaded successfully!",
-            data={"attachment_name": attachment_name, "file_path": file_path},
+            "✓ 附件上传成功！",
+            data=result,
         )
         return success_result.model_dump_json()
 
     except Exception as e:
-        logger.error(f"Error uploading attachment: {e}", exc_info=True)
-        error_result = ToolResult.error_result(f"Error: {str(e)}")
+        logger.error(f"上传附件出错：{e}", exc_info=True)
+        error_result = ToolResult.error_result(f"错误：{str(e)}")
         return error_result.model_dump_json()
 
 
 async def upload_attachment_from_url_tool(client: HaloClient, args: Dict[str, Any]) -> str:
     """
-    Tool handler for uploading attachment from URL.
+    工具处理器：从 URL 上传附件。
 
-    Args:
-        client: Halo API client
-        args: Tool arguments
+    参数:
+        client: Halo API 客户端
+        args: 工具参数
 
-    Returns:
-        JSON string of operation result
+    返回:
+        操作结果的 JSON 字符串
     """
     try:
         url = args.get("url")
         if not url:
-            error_result = ToolResult.error_result("Error: 'url' parameter is required")
+            error_result = ToolResult.error_result("错误：缺少参数 'url'")
             return error_result.model_dump_json()
 
         policy_name = args.get("policy_name", "default-policy")
         group_name = args.get("group_name")
 
-        logger.debug(f"Uploading attachment from URL: {url}")
+        logger.debug(f"正在从 URL 上传附件：url={url}, policy={policy_name}, group={group_name}")
 
         result = await upload_attachment_from_url(
-            url=url, policy_name=policy_name, group_name=group_name
+            url=url, policy_name=policy_name, group_name=group_name, client=client
         )
 
-        attachment_name = result.get("metadata", {}).get("name", "")
+        logger.info(f"URL 附件上传完成：{result}")
+
         success_result = ToolResult.success_result(
-            f"✓ Attachment uploaded from URL successfully!",
-            data={"attachment_name": attachment_name, "url": url},
+            "✓ 附件从 URL 上传成功！",
+            data=result,
         )
         return success_result.model_dump_json()
 
     except Exception as e:
-        logger.error(f"Error uploading attachment from URL: {e}", exc_info=True)
-        error_result = ToolResult.error_result(f"Error: {str(e)}")
+        logger.error(f"从 URL 上传附件出错：{e}", exc_info=True)
+        error_result = ToolResult.error_result(f"错误：{str(e)}")
         return error_result.model_dump_json()
 
 
 async def delete_attachment_tool(client: HaloClient, args: Dict[str, Any]) -> str:
     """
-    Tool handler for deleting attachment.
+    工具处理器：删除附件。
 
-    Args:
-        client: Halo API client
-        args: Tool arguments
+    参数:
+        client: Halo API 客户端
+        args: 工具参数
 
-    Returns:
-        JSON string of operation result
+    返回:
+        操作结果的 JSON 字符串
     """
     try:
         name = args.get("name")
         if not name:
-            error_result = ToolResult.error_result("Error: 'name' parameter is required")
+            error_result = ToolResult.error_result("错误：缺少参数 'name'")
             return error_result.model_dump_json()
 
-        logger.debug(f"Deleting attachment: {name}")
+        logger.debug(f"正在删除附件：{name}")
 
-        await delete_attachment(name)
+        await delete_attachment(name, client=client)
 
         success_result = ToolResult.success_result(
-            f"✓ Attachment '{name}' deleted successfully!",
+            f"✓ 附件 '{name}' 删除成功！",
             data={"attachment_name": name, "deleted": True},
         )
         return success_result.model_dump_json()
 
     except Exception as e:
-        logger.error(f"Error deleting attachment: {e}", exc_info=True)
-        error_result = ToolResult.error_result(f"Error: {str(e)}")
+        logger.error(f"删除附件出错：{e}", exc_info=True)
+        error_result = ToolResult.error_result(f"错误：{str(e)}")
         return error_result.model_dump_json()
 
 
 async def list_attachment_groups_tool(client: HaloClient, args: Dict[str, Any]) -> str:
     """
-    Tool handler for listing attachment groups.
+    工具处理器：列出附件分组。
 
-    Args:
-        client: Halo API client
-        args: Tool arguments
+    参数:
+        client: Halo API 客户端
+        args: 工具参数
 
-    Returns:
-        JSON string of attachment groups list
+    返回:
+        附件分组列表的 JSON 字符串
     """
     try:
         page = args.get("page", 0)
         size = args.get("size", 100)
         sort = args.get("sort")
 
-        logger.debug(f"Listing attachment groups: page={page}, size={size}")
+        logger.debug(f"正在列出附件分组：page={page}, size={size}")
 
-        result = await list_attachment_groups(page=page, size=size, sort=sort)
+        result = await list_attachment_groups(page=page, size=size, sort=sort, client=client)
         return json.dumps(result, ensure_ascii=False, indent=2)
 
     except Exception as e:
-        logger.error(f"Error listing attachment groups: {e}", exc_info=True)
-        error_result = ToolResult.error_result(f"Error: {str(e)}")
+        logger.error(f"列出附件分组出错：{e}", exc_info=True)
+        error_result = ToolResult.error_result(f"错误：{str(e)}")
         return error_result.model_dump_json()
 
 
 async def create_attachment_group_tool(client: HaloClient, args: Dict[str, Any]) -> str:
     """
-    Tool handler for creating attachment group.
+    工具处理器：创建附件分组。
 
-    Args:
-        client: Halo API client
-        args: Tool arguments
+    参数:
+        client: Halo API 客户端
+        args: 工具参数
 
-    Returns:
-        JSON string of operation result
+    返回:
+        操作结果的 JSON 字符串
     """
     try:
         display_name = args.get("display_name")
         if not display_name:
-            error_result = ToolResult.error_result("Error: 'display_name' parameter is required")
+            error_result = ToolResult.error_result("错误：缺少参数 'display_name'")
             return error_result.model_dump_json()
 
-        logger.debug(f"Creating attachment group: {display_name}")
+        logger.debug(f"正在创建附件分组：{display_name}")
 
-        result = await create_attachment_group(display_name=display_name)
+        result = await create_attachment_group(display_name=display_name, client=client)
 
-        group_name = result.get("metadata", {}).get("name", "")
         success_result = ToolResult.success_result(
-            f"✓ Attachment group '{display_name}' created successfully!",
-            data={"group_name": group_name, "display_name": display_name},
+            f"✓ 附件分组 '{display_name}' 创建成功！",
+            data={"display_name": display_name},
         )
         return success_result.model_dump_json()
 
     except Exception as e:
-        logger.error(f"Error creating attachment group: {e}", exc_info=True)
-        error_result = ToolResult.error_result(f"Error: {str(e)}")
+        logger.error(f"创建附件分组出错：{e}", exc_info=True)
+        error_result = ToolResult.error_result(f"错误：{str(e)}")
         return error_result.model_dump_json()
 
 
 async def list_storage_policies_tool(client: HaloClient, args: Dict[str, Any]) -> str:
     """
-    Tool handler for listing storage policies.
+    工具处理器：列出存储策略。
 
-    Args:
-        client: Halo API client
-        args: Tool arguments
+    参数:
+        client: Halo API 客户端
+        args: 工具参数
 
-    Returns:
-        JSON string of storage policies list
+    返回:
+        存储策略列表的 JSON 字符串
     """
     try:
-        logger.debug("Listing storage policies")
-
-        result = await get_attachment_policies()
+        logger.debug("正在列出存储策略")
+        result = await list_storage_policies(client=client)
         return json.dumps(result, ensure_ascii=False, indent=2)
 
     except Exception as e:
-        logger.error(f"Error listing storage policies: {e}", exc_info=True)
-        error_result = ToolResult.error_result(f"Error: {str(e)}")
+        logger.error(f"列出存储策略出错：{e}", exc_info=True)
+        error_result = ToolResult.error_result(f"错误：{str(e)}")
         return error_result.model_dump_json()

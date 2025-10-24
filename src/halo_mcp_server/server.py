@@ -1,4 +1,4 @@
-"""MCP Server implementation."""
+"""MCP 服务器实现。"""
 
 from typing import Any, Dict, Optional
 
@@ -22,8 +22,10 @@ from halo_mcp_server.tools.post_tools import (
     unpublish_post_tool,
     update_post_draft_tool,
     update_post_tool,
+    POST_TOOLS,
 )
 from halo_mcp_server.tools.tag_tools import TAG_TOOLS
+from halo_mcp_server.models.common import ToolResult
 
 
 # Create MCP server instance
@@ -34,29 +36,29 @@ halo_client: Optional[HaloClient] = None
 
 
 async def get_halo_client() -> HaloClient:
-    """Get or create Halo client instance."""
+    """获取或创建 Halo 客户端实例。"""
     global halo_client
     if halo_client is None:
         halo_client = HaloClient()
         await halo_client.connect()
         await halo_client.authenticate()
-        logger.info("Halo client initialized")
+        logger.info("Halo 客户端已初始化")
     return halo_client
 
 
 @app.list_prompts()
 async def list_prompts() -> list[Prompt]:
-    """List available MCP prompts."""
-    logger.debug("Listing prompts...")
-    logger.info(f"Registered {len(BLOG_PROMPTS)} prompts")
+    """列出可用的 MCP 提示。"""
+    logger.debug("正在列出提示...")
+    logger.info(f"已注册 {len(BLOG_PROMPTS)} 个提示")
     return BLOG_PROMPTS
 
 
 @app.get_prompt()
 async def get_prompt(name: str, arguments: Dict[str, str]) -> str:
-    """Get prompt content with arguments."""
-    logger.info(f"Getting prompt: {name}")
-    logger.debug(f"Arguments: {arguments}")
+    """根据参数获取提示内容。"""
+    logger.info(f"获取提示：{name}")
+    logger.debug(f"参数：{arguments}")
 
     # Find the prompt by name
     prompt = None
@@ -66,7 +68,7 @@ async def get_prompt(name: str, arguments: Dict[str, str]) -> str:
             break
 
     if not prompt:
-        raise ValueError(f"Prompt '{name}' not found")
+        raise ValueError(f"未找到提示：'{name}'")
 
     # Generate prompt content based on the prompt type
     if name == "halo_blog_writing_assistant":
@@ -90,11 +92,11 @@ async def get_prompt(name: str, arguments: Dict[str, str]) -> str:
     elif name == "halo_series_planner":
         return _generate_series_planner_prompt(arguments)
     else:
-        raise ValueError(f"Unknown prompt: {name}")
+        raise ValueError(f"未知的提示：{name}")
 
 
 def _generate_writing_assistant_prompt(args: Dict[str, str]) -> str:
-    """Generate writing assistant prompt."""
+    """生成写作助手提示。"""
     topic = args.get("topic", "")
     target_audience = args.get("target_audience", "一般读者")
     article_type = args.get("article_type", "技术文章")
@@ -135,7 +137,7 @@ def _generate_writing_assistant_prompt(args: Dict[str, str]) -> str:
 
 
 def _generate_content_optimizer_prompt(args: Dict[str, str]) -> str:
-    """Generate content optimizer prompt."""
+    """生成内容优化提示。"""
     content = args.get("content", "")
     optimization_focus = args.get("optimization_focus", "整体优化")
     target_length = args.get("target_length", "保持不变")
@@ -174,7 +176,7 @@ def _generate_content_optimizer_prompt(args: Dict[str, str]) -> str:
 
 
 def _generate_seo_optimizer_prompt(args: Dict[str, str]) -> str:
-    """Generate SEO optimizer prompt."""
+    """生成 SEO 优化提示。"""
     title = args.get("title", "")
     content = args.get("content", "")
     target_keywords = args.get("target_keywords", "")
@@ -217,7 +219,7 @@ def _generate_seo_optimizer_prompt(args: Dict[str, str]) -> str:
 
 
 def _generate_title_generator_prompt(args: Dict[str, str]) -> str:
-    """Generate title generator prompt."""
+    """生成标题生成器提示。"""
     content_summary = args.get("content_summary", "")
     title_style = args.get("title_style", "多样化")
     title_count = args.get("title_count", "5")
@@ -249,14 +251,14 @@ def _generate_title_generator_prompt(args: Dict[str, str]) -> str:
 - **问题式：** 以疑问句形式吸引读者
 - **数字式：** 使用具体数字增加可信度
 - **对比式：** 突出前后对比或优劣比较
-- **悬念式：** 制造悬念激发好奇心
+- **悬念式：** 制造悬念激发好奇
 - **实用式：** 强调实用价值和解决方案
 
 请生成 {title_count} 个不同风格的标题选项，并简要说明每个标题的特点。"""
 
 
 def _generate_excerpt_generator_prompt(args: Dict[str, str]) -> str:
-    """Generate excerpt generator prompt."""
+    """生成摘要生成器提示。"""
     content = args.get("content", "")
     excerpt_length = args.get("excerpt_length", "中等长度")
     excerpt_style = args.get("excerpt_style", "概述式")
@@ -300,7 +302,7 @@ def _generate_excerpt_generator_prompt(args: Dict[str, str]) -> str:
 
 
 def _generate_tag_suggester_prompt(args: Dict[str, str]) -> str:
-    """Generate tag suggester prompt."""
+    """生成标签建议提示。"""
     title = args.get("title", "")
     content = args.get("content", "")
     existing_tags = args.get("existing_tags", "")
@@ -346,7 +348,7 @@ def _generate_tag_suggester_prompt(args: Dict[str, str]) -> str:
 
 
 def _generate_category_suggester_prompt(args: Dict[str, str]) -> str:
-    """Generate category suggester prompt."""
+    """生成分类建议提示。"""
     title = args.get("title", "")
     content = args.get("content", "")
     existing_categories = args.get("existing_categories", "")
@@ -392,7 +394,7 @@ def _generate_category_suggester_prompt(args: Dict[str, str]) -> str:
 
 
 def _generate_content_translator_prompt(args: Dict[str, str]) -> str:
-    """Generate content translator prompt."""
+    """生成内容翻译提示。"""
     content = args.get("content", "")
     target_language = args.get("target_language", "")
     preserve_formatting = args.get("preserve_formatting", "是")
@@ -437,7 +439,7 @@ def _generate_content_translator_prompt(args: Dict[str, str]) -> str:
 
 
 def _generate_content_proofreader_prompt(args: Dict[str, str]) -> str:
-    """Generate content proofreader prompt."""
+    """生成内容校对提示。"""
     content = args.get("content", "")
     language = args.get("language", "中文")
     check_focus = args.get("check_focus", "全面检查")
@@ -486,7 +488,7 @@ def _generate_content_proofreader_prompt(args: Dict[str, str]) -> str:
 
 
 def _generate_series_planner_prompt(args: Dict[str, str]) -> str:
-    """Generate series planner prompt."""
+    """生成系列规划提示。"""
     series_topic = args.get("series_topic", "")
     target_audience = args.get("target_audience", "技术开发者")
     article_count = args.get("article_count", "5-8")
@@ -544,8 +546,8 @@ def _generate_series_planner_prompt(args: Dict[str, str]) -> str:
 
 @app.list_tools()
 async def list_tools() -> list[Tool]:
-    """List available MCP tools."""
-    logger.debug("Listing tools...")
+    """列出可用的 MCP 工具。"""
+    logger.debug("正在列出工具...")
 
     # Post management tools
     post_tools = [
@@ -725,7 +727,7 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="unpublish_post",
-            description="取消发布文章，将其转换回草稿状态",
+            description="取消发布文章，使其转换回草稿状态",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -791,7 +793,7 @@ async def list_tools() -> list[Tool]:
     ]
 
     # Combine all tools
-    all_tools = post_tools + CATEGORY_TOOLS + TAG_TOOLS + ATTACHMENT_TOOLS
+    all_tools = POST_TOOLS + CATEGORY_TOOLS + TAG_TOOLS + ATTACHMENT_TOOLS
 
     logger.info(f"Registered {len(all_tools)} tools")
     return all_tools
@@ -799,9 +801,9 @@ async def list_tools() -> list[Tool]:
 
 @app.call_tool()
 async def call_tool(name: str, arguments: Dict[str, Any]) -> list[Any]:
-    """Handle tool execution."""
-    logger.info(f"Executing tool: {name}")
-    logger.debug(f"Arguments: {arguments}")
+    """处理工具执行。"""
+    logger.info(f"执行工具：{name}")
+    logger.debug(f"参数：{arguments}")
 
     try:
         client = await get_halo_client()
@@ -919,17 +921,17 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> list[Any]:
         return [{"type": "text", "text": result}]
 
     except Exception as e:
-        error_msg = f"Error executing {name}: {str(e)}"
-        logger.error(error_msg, exc_info=True)
-        return [{"type": "text", "text": error_msg}]
+        logger.error(f"Error executing {name}: {e}", exc_info=True)
+        error_result = ToolResult.error_result(f"Error executing {name}: {str(e)}")
+        return [{"type": "text", "text": error_result.model_dump_json()}]
 
 
 async def run_server() -> None:
-    """Run the MCP server using stdio transport."""
-    logger.info("Starting MCP server with stdio transport...")
+    """使用 stdio 传输运行 MCP 服务器。"""
+    logger.info("使用 stdio 传输启动 MCP 服务器...")
 
     async with stdio_server() as (read_stream, write_stream):
-        logger.info("Server ready, waiting for requests...")
+        logger.info("服务器已就绪，正在等待请求...")
         await app.run(read_stream, write_stream, app.create_initialization_options())
 
 

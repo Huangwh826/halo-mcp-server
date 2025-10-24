@@ -1,16 +1,16 @@
-"""Custom exceptions for Halo MCP Server."""
+"""Halo MCP 服务器自定义异常"""
 
 
 class HaloMCPError(Exception):
-    """Base exception for Halo MCP Server."""
+    """Halo MCP 服务器基础异常"""
 
     def __init__(self, message: str, details: dict = None):
         """
-        Initialize exception.
+        初始化异常。
 
-        Args:
-            message: Error message
-            details: Additional error details
+        参数:
+            message: 错误信息
+            details: 额外的错误细节
         """
         super().__init__(message)
         self.message = message
@@ -18,62 +18,62 @@ class HaloMCPError(Exception):
 
 
 class AuthenticationError(HaloMCPError):
-    """Authentication failed."""
+    """认证失败"""
 
     pass
 
 
 class AuthorizationError(HaloMCPError):
-    """Authorization/permission denied."""
+    """授权/权限拒绝"""
 
     pass
 
 
 class ResourceNotFoundError(HaloMCPError):
-    """Resource not found."""
+    """资源未找到"""
 
     def __init__(self, resource_type: str, name: str):
         """
-        Initialize resource not found error.
+        初始化资源未找到异常。
 
-        Args:
-            resource_type: Type of resource
-            name: Name of resource
+        参数:
+            resource_type: 资源类型
+            name: 资源名称
         """
-        super().__init__(f"{resource_type} '{name}' not found")
+        super().__init__(f"未找到资源 {resource_type} '{name}'")
         self.resource_type = resource_type
         self.name = name
 
 
 class ValidationError(HaloMCPError):
-    """Data validation error."""
+    """数据校验错误"""
 
     pass
 
 
 class NetworkError(HaloMCPError):
-    """Network/HTTP error."""
+    """网络/HTTP 错误"""
 
     def __init__(self, message: str, status_code: int = None, details: dict = None):
         """
-        Initialize network error.
+        初始化网络错误。
 
-        Args:
-            message: Error message
-            status_code: HTTP status code
-            details: Additional error details
+        参数:
+            message: 错误信息
+            status_code: HTTP 状态码
+            details: 额外错误细节
         """
         super().__init__(message, details)
         self.status_code = status_code
 
 
 class ConfigurationError(HaloMCPError):
-    """Configuration error."""
+    """配置错误"""
 
     pass
 
 
 class OperationError(HaloMCPError):
-    """Operation failed."""
+    """操作失败"""
 
     pass

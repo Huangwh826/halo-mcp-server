@@ -370,12 +370,18 @@ async def update_post_tool(client: HaloClient, args: Dict[str, Any]) -> str:
 
             logger.debug(f"Setting content-json annotation with {len(content)} chars")
 
-            # Update draft - 只更新 metadata,spec 保持不变
+            # Update draft - 需要补充 spec 的 patch 字段以应用内容
             draft_data = {
                 "apiVersion": current_draft.get("apiVersion", "content.halo.run/v1alpha1"),
                 "kind": current_draft.get("kind", "Snapshot"),
                 "metadata": metadata,
-                "spec": current_draft.get("spec", {}),  # spec 保持原样
+                "spec": {
+                    **current_draft.get("spec", {}),
+                    "rawType": "HTML",
+                    "rawPatch": html_content,
+                    "contentPatch": html_content,
+                    "lastModifyTime": datetime.now().isoformat() + "Z",
+                },
             }
 
             logger.debug(f"Calling update_post_draft with content-json annotation")
@@ -512,11 +518,24 @@ async def update_post_draft_tool(client: HaloClient, args: Dict[str, Any]) -> st
         # 将 Markdown 转换为 HTML
         html_content = markdown_to_html(content)
 
-        # 构造正确的 Snapshot 数据结构
+        # 设置 content-json 注解（根据 API 要求必须设置）
+        metadata = current_draft.get("metadata", {})
+        if "annotations" not in metadata:
+            metadata["annotations"] = {}
+        metadata["annotations"]["content.halo.run/content-json"] = json.dumps(
+            {
+                "raw": html_content,
+                "content": html_content,
+                "rawType": "HTML",
+            },
+            ensure_ascii=False,
+        )
+
+        # 构造正确的 Snapshot 数据结构（保留并补充 patch 字段）
         draft_data = {
             "apiVersion": current_draft.get("apiVersion", "content.halo.run/v1alpha1"),
             "kind": current_draft.get("kind", "Snapshot"),
-            "metadata": current_draft.get("metadata", {}),
+            "metadata": metadata,
             "spec": {
                 **current_draft.get("spec", {}),
                 "rawType": "HTML",

@@ -1,6 +1,6 @@
-"""Tag management tools for Halo MCP."""
+"""Halo MCP 标签管理工具"""
 
-"""Tag management tools for Halo MCP."""
+"""Halo MCP 标签管理工具"""
 
 import json
 from typing import Any, Dict, List, Optional
@@ -18,6 +18,7 @@ async def list_tags(
     size: int = 100,
     keyword: Optional[str] = None,
     sort: Optional[List[str]] = None,
+    client: Optional[HaloClient] = None,
 ) -> Dict[str, Any]:
     """
     列出所有标签。
@@ -35,7 +36,7 @@ async def list_tags(
         HaloMCPError: API 调用失败
     """
     try:
-        client = HaloClient()
+        client = client or HaloClient()
         await client.ensure_authenticated()
 
         params = {"page": page, "size": size}
@@ -49,10 +50,10 @@ async def list_tags(
         return response
 
     except Exception as e:
-        raise HaloMCPError(f"Failed to list tags: {e}")
+        raise HaloMCPError(f"获取标签列表失败：{e}")
 
 
-async def get_tag(name: str) -> Dict[str, Any]:
+async def get_tag(name: str, client: Optional[HaloClient] = None) -> Dict[str, Any]:
     """
     获取指定标签的详细信息。
 
@@ -66,14 +67,14 @@ async def get_tag(name: str) -> Dict[str, Any]:
         HaloMCPError: API 调用失败
     """
     try:
-        client = HaloClient()
+        client = client or HaloClient()
         await client.ensure_authenticated()
 
         response = await client.get(f"/apis/content.halo.run/v1alpha1/tags/{name}")
         return response
 
     except Exception as e:
-        raise HaloMCPError(f"Failed to get tag '{name}': {e}")
+        raise HaloMCPError(f"获取标签 '{name}' 失败：{e}")
 
 
 async def create_tag(
@@ -81,6 +82,7 @@ async def create_tag(
     slug: Optional[str] = None,
     color: Optional[str] = None,
     cover: Optional[str] = None,
+    client: Optional[HaloClient] = None,
 ) -> Dict[str, Any]:
     """
     创建新标签。
@@ -98,7 +100,7 @@ async def create_tag(
         HaloMCPError: API 调用失败
     """
     try:
-        client = HaloClient()
+        client = client or HaloClient()
         await client.ensure_authenticated()
 
         # 构建标签数据
@@ -125,7 +127,7 @@ async def create_tag(
         return response
 
     except Exception as e:
-        raise HaloMCPError(f"Failed to create tag: {e}")
+        raise HaloMCPError(f"创建标签失败：{e}")
 
 
 async def update_tag(
@@ -134,6 +136,7 @@ async def update_tag(
     slug: Optional[str] = None,
     color: Optional[str] = None,
     cover: Optional[str] = None,
+    client: Optional[HaloClient] = None,
 ) -> Dict[str, Any]:
     """
     更新现有标签。
@@ -152,7 +155,7 @@ async def update_tag(
         HaloMCPError: API 调用失败
     """
     try:
-        client = HaloClient()
+        client = client or HaloClient()
         await client.ensure_authenticated()
 
         # 先获取现有标签信息
@@ -175,10 +178,10 @@ async def update_tag(
         return response
 
     except Exception as e:
-        raise HaloMCPError(f"Failed to update tag '{name}': {e}")
+        raise HaloMCPError(f"更新标签 '{name}' 失败：{e}")
 
 
-async def delete_tag(name: str) -> Dict[str, Any]:
+async def delete_tag(name: str, client: Optional[HaloClient] = None) -> Dict[str, Any]:
     """
     删除标签。
 
@@ -192,14 +195,14 @@ async def delete_tag(name: str) -> Dict[str, Any]:
         HaloMCPError: API 调用失败
     """
     try:
-        client = HaloClient()
+        client = client or HaloClient()
         await client.ensure_authenticated()
 
         response = await client.delete(f"/apis/content.halo.run/v1alpha1/tags/{name}")
         return response
 
     except Exception as e:
-        raise HaloMCPError(f"Failed to delete tag '{name}': {e}")
+        raise HaloMCPError(f"删除标签 '{name}' 失败：{e}")
 
 
 async def get_tag_posts(
@@ -207,6 +210,7 @@ async def get_tag_posts(
     page: int = 0,
     size: int = 20,
     sort: Optional[List[str]] = None,
+    client: Optional[HaloClient] = None,
 ) -> Dict[str, Any]:
     """
     获取指定标签下的文章列表。
@@ -224,7 +228,8 @@ async def get_tag_posts(
         HaloMCPError: API 调用失败
     """
     try:
-        client = HaloClient()
+        client = client or HaloClient()
+        await client.ensure_authenticated()
 
         params = {"page": page, "size": size}
         if sort:
@@ -238,7 +243,7 @@ async def get_tag_posts(
         return response
 
     except Exception as e:
-        raise HaloMCPError(f"Failed to get posts for tag '{name}': {e}")
+        raise HaloMCPError(f"获取标签下的文章失败：{e}")
 
 
 async def list_console_tags(
@@ -246,6 +251,7 @@ async def list_console_tags(
     size: int = 100,
     keyword: Optional[str] = None,
     sort: Optional[List[str]] = None,
+    client: Optional[HaloClient] = None,
 ) -> Dict[str, Any]:
     """
     列出控制台标签（用于后台管理）。
@@ -263,7 +269,7 @@ async def list_console_tags(
         HaloMCPError: API 调用失败
     """
     try:
-        client = HaloClient()
+        client = client or HaloClient()
         await client.ensure_authenticated()
 
         params = {"page": page, "size": size}
@@ -277,7 +283,7 @@ async def list_console_tags(
         return response
 
     except Exception as e:
-        raise HaloMCPError(f"Failed to list console tags: {e}")
+        raise HaloMCPError(f"列出控制台标签失败：{e}")
 
 
 # MCP Tool 定义
@@ -459,14 +465,14 @@ TAG_TOOLS = [
 
 async def list_tags_tool(client: HaloClient, args: Dict[str, Any]) -> str:
     """
-    Tool handler for listing tags.
+    工具处理器：列出标签。
 
-    Args:
-        client: Halo API client
-        args: Tool arguments
+    参数:
+        client: Halo API 客户端
+        args: 工具参数
 
-    Returns:
-        JSON string of tags list
+    返回:
+        标签列表的 JSON 字符串
     """
     try:
         page = args.get("page", 0)
@@ -474,98 +480,100 @@ async def list_tags_tool(client: HaloClient, args: Dict[str, Any]) -> str:
         keyword = args.get("keyword")
         sort = args.get("sort")
 
-        logger.debug(f"Listing tags: page={page}, size={size}, keyword={keyword}")
+        logger.debug(f"正在列出标签：page={page}, size={size}, keyword={keyword}")
 
-        result = await list_tags(page=page, size=size, keyword=keyword, sort=sort)
+        result = await list_tags(page=page, size=size, keyword=keyword, sort=sort, client=client)
         return json.dumps(result, ensure_ascii=False, indent=2)
 
     except Exception as e:
-        logger.error(f"Error listing tags: {e}", exc_info=True)
-        error_result = ToolResult.error_result(f"Error: {str(e)}")
+        logger.error(f"列出标签出错：{e}", exc_info=True)
+        error_result = ToolResult.error_result(f"错误：{str(e)}")
         return error_result.model_dump_json()
 
 
 async def get_tag_tool(client: HaloClient, args: Dict[str, Any]) -> str:
     """
-    Tool handler for getting tag details.
+    工具处理器：获取标签详情。
 
-    Args:
-        client: Halo API client
-        args: Tool arguments
+    参数:
+        client: Halo API 客户端
+        args: 工具参数
 
-    Returns:
-        JSON string of tag details
+    返回:
+        标签详情的 JSON 字符串
     """
     try:
         name = args.get("name")
         if not name:
-            error_result = ToolResult.error_result("Error: 'name' parameter is required")
+            error_result = ToolResult.error_result("错误：缺少参数 'name'")
             return error_result.model_dump_json()
 
-        logger.debug(f"Getting tag: {name}")
+        logger.debug(f"正在获取标签：{name}")
 
-        result = await get_tag(name)
+        result = await get_tag(name, client=client)
         return json.dumps(result, ensure_ascii=False, indent=2)
 
     except Exception as e:
-        logger.error(f"Error getting tag: {e}", exc_info=True)
-        error_result = ToolResult.error_result(f"Error: {str(e)}")
+        logger.error(f"获取标签出错：{e}", exc_info=True)
+        error_result = ToolResult.error_result(f"错误：{str(e)}")
         return error_result.model_dump_json()
 
 
 async def create_tag_tool(client: HaloClient, args: Dict[str, Any]) -> str:
     """
-    Tool handler for creating a new tag.
+    工具处理器：创建新标签。
 
-    Args:
-        client: Halo API client
-        args: Tool arguments
+    参数:
+        client: Halo API 客户端
+        args: 工具参数
 
-    Returns:
-        JSON string of operation result
+    返回:
+        操作结果的 JSON 字符串
     """
     try:
         display_name = args.get("display_name")
         if not display_name:
-            error_result = ToolResult.error_result("Error: 'display_name' parameter is required")
+            error_result = ToolResult.error_result("错误：缺少参数 'display_name'")
             return error_result.model_dump_json()
 
         slug = args.get("slug")
         color = args.get("color")
         cover = args.get("cover")
 
-        logger.debug(f"Creating tag: {display_name}")
+        logger.debug(f"正在创建标签：{display_name}")
 
-        result = await create_tag(display_name=display_name, slug=slug, color=color, cover=cover)
+        result = await create_tag(
+            display_name=display_name, slug=slug, color=color, cover=cover, client=client
+        )
 
         tag_name = result.get("metadata", {}).get("name", "")
         success_result = ToolResult.success_result(
-            f"✓ Tag '{display_name}' created successfully!",
+            f"✓ 标签 '{display_name}' 创建成功！",
             data={"tag_name": tag_name, "display_name": display_name},
         )
         return success_result.model_dump_json()
 
     except Exception as e:
-        logger.error(f"Error creating tag: {e}", exc_info=True)
-        error_result = ToolResult.error_result(f"Error: {str(e)}")
+        logger.error(f"创建标签出错：{e}", exc_info=True)
+        error_result = ToolResult.error_result(f"错误：{str(e)}")
         return error_result.model_dump_json()
 
 
 async def update_tag_tool(client: HaloClient, args: Dict[str, Any]) -> str:
     """
-    Tool handler for updating a tag.
+    工具处理器：更新标签。
 
-    Args:
-        client: Halo API client
-        args: Tool arguments
+    参数:
+        client: Halo API 客户端
+        args: 工具参数
 
-    Returns:
-        JSON string of operation result
+    返回:
+        操作结果的 JSON 字符串
     """
     try:
         name = args.get("name")
         if not name:
-            error_result = ToolResult.error_result("Error: 'name' parameter is required")
+            error_result = ToolResult.error_result("错误：缺少参数 'name'")
             return error_result.model_dump_json()
 
         display_name = args.get("display_name")
@@ -573,100 +581,100 @@ async def update_tag_tool(client: HaloClient, args: Dict[str, Any]) -> str:
         color = args.get("color")
         cover = args.get("cover")
 
-        logger.debug(f"Updating tag: {name}")
+        logger.debug(f"正在更新标签：{name}")
 
         result = await update_tag(
-            name=name, display_name=display_name, slug=slug, color=color, cover=cover
+            name=name, display_name=display_name, slug=slug, color=color, cover=cover, client=client
         )
 
         updated_display_name = result.get("spec", {}).get("displayName", name)
         success_result = ToolResult.success_result(
-            f"✓ Tag '{updated_display_name}' updated successfully!",
+            f"✓ 标签 '{updated_display_name}' 更新成功！",
             data={"tag_name": name, "updated": True},
         )
         return success_result.model_dump_json()
 
     except Exception as e:
-        logger.error(f"Error updating tag: {e}", exc_info=True)
-        error_result = ToolResult.error_result(f"Error: {str(e)}")
+        logger.error(f"更新标签出错：{e}", exc_info=True)
+        error_result = ToolResult.error_result(f"错误：{str(e)}")
         return error_result.model_dump_json()
 
 
 async def delete_tag_tool(client: HaloClient, args: Dict[str, Any]) -> str:
     """
-    Tool handler for deleting a tag.
+    工具处理器：删除标签。
 
-    Args:
-        client: Halo API client
-        args: Tool arguments
+    参数:
+        client: Halo API 客户端
+        args: 工具参数
 
-    Returns:
-        JSON string of operation result
+    返回:
+        操作结果的 JSON 字符串
     """
     try:
         name = args.get("name")
         if not name:
-            error_result = ToolResult.error_result("Error: 'name' parameter is required")
+            error_result = ToolResult.error_result("错误：缺少参数 'name'")
             return error_result.model_dump_json()
 
-        logger.debug(f"Deleting tag: {name}")
+        logger.debug(f"正在删除标签：{name}")
 
-        await delete_tag(name)
+        await delete_tag(name, client=client)
 
         success_result = ToolResult.success_result(
-            f"✓ Tag '{name}' deleted successfully!",
+            f"✓ 标签 '{name}' 删除成功！",
             data={"tag_name": name, "deleted": True},
         )
         return success_result.model_dump_json()
 
     except Exception as e:
-        logger.error(f"Error deleting tag: {e}", exc_info=True)
-        error_result = ToolResult.error_result(f"Error: {str(e)}")
+        logger.error(f"删除标签出错：{e}", exc_info=True)
+        error_result = ToolResult.error_result(f"错误：{str(e)}")
         return error_result.model_dump_json()
 
 
 async def get_posts_under_tag_tool(client: HaloClient, args: Dict[str, Any]) -> str:
     """
-    Tool handler for getting posts under a tag.
+    工具处理器：获取标签下的文章。
 
-    Args:
-        client: Halo API client
-        args: Tool arguments
+    参数:
+        client: Halo API 客户端
+        args: 工具参数
 
-    Returns:
-        JSON string of posts list
+    返回:
+        文章列表的 JSON 字符串
     """
     try:
         name = args.get("name")
         if not name:
-            error_result = ToolResult.error_result("Error: 'name' parameter is required")
+            error_result = ToolResult.error_result("错误：缺少参数 'name'")
             return error_result.model_dump_json()
 
         page = args.get("page", 0)
         size = args.get("size", 20)
         sort = args.get("sort")
 
-        logger.debug(f"Getting posts under tag: {name}, page={page}, size={size}")
+        logger.debug(f"正在获取标签下的文章：{name}, page={page}, size={size}")
 
-        result = await get_tag_posts(name=name, page=page, size=size, sort=sort)
+        result = await get_tag_posts(name=name, page=page, size=size, sort=sort, client=client)
         return json.dumps(result, ensure_ascii=False, indent=2)
 
     except Exception as e:
-        logger.error(f"Error getting posts under tag: {e}", exc_info=True)
-        error_result = ToolResult.error_result(f"Error: {str(e)}")
+        logger.error(f"获取标签下文章出错：{e}", exc_info=True)
+        error_result = ToolResult.error_result(f"错误：{str(e)}")
         return error_result.model_dump_json()
 
 
 async def list_console_tags_tool(client: HaloClient, args: Dict[str, Any]) -> str:
     """
-    Tool handler for listing console tags.
+    工具处理器：列出控制台标签。
 
-    Args:
-        client: Halo API client
-        args: Tool arguments
+    参数:
+        client: Halo API 客户端
+        args: 工具参数
 
-    Returns:
-        JSON string of console tags list
+    返回:
+        控制台标签列表的 JSON 字符串
     """
     try:
         page = args.get("page", 0)
@@ -674,12 +682,14 @@ async def list_console_tags_tool(client: HaloClient, args: Dict[str, Any]) -> st
         keyword = args.get("keyword")
         sort = args.get("sort")
 
-        logger.debug(f"Listing console tags: page={page}, size={size}, keyword={keyword}")
+        logger.debug(f"正在列出控制台标签：page={page}, size={size}, keyword={keyword}")
 
-        result = await list_console_tags(page=page, size=size, keyword=keyword, sort=sort)
+        result = await list_console_tags(
+            page=page, size=size, keyword=keyword, sort=sort, client=client
+        )
         return json.dumps(result, ensure_ascii=False, indent=2)
 
     except Exception as e:
-        logger.error(f"Error listing console tags: {e}", exc_info=True)
-        error_result = ToolResult.error_result(f"Error: {str(e)}")
+        logger.error(f"列出控制台标签出错：{e}", exc_info=True)
+        error_result = ToolResult.error_result(f"错误：{str(e)}")
         return error_result.model_dump_json()
