@@ -110,8 +110,7 @@ class HaloClient(BaseHTTPClient):
         return await self.get(f"/apis/uc.api.content.halo.run/v1alpha1/posts/{name}")
 
     async def create_post(self, post_data: Dict[str, Any]) -> Dict[str, Any]:
-        """创建一篇新文章。
-        """
+        """创建一篇新文章。"""
         await self.ensure_authenticated()
         return await self.post("/apis/api.console.halo.run/v1alpha1/posts", json=post_data)
 
@@ -123,8 +122,7 @@ class HaloClient(BaseHTTPClient):
         )
 
     async def publish_post(self, name: str) -> Dict[str, Any]:
-        """发布文章。
-        """
+        """发布文章。"""
         await self.ensure_authenticated()
         return await self.put(
             f"/apis/api.console.halo.run/v1alpha1/posts/{name}/publish", params={"async": "true"}
