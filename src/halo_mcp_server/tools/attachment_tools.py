@@ -352,7 +352,7 @@ async def get_attachment_policies(client: Optional[HaloClient] = None) -> Dict[s
 ATTACHMENT_TOOLS = [
     Tool(
         name="list_attachments",
-        description="搜索和列出附件，支持分页、关键词搜索和文件类型过滤",
+        description="搜索和列出附件，支持分页、关键词搜索和文件类型过滤。推荐用法：附件库检索；可用 `accepts`（如 `image/*`）与分组过滤。",
         inputSchema={
             "type": "object",
             "properties": {
@@ -389,7 +389,7 @@ ATTACHMENT_TOOLS = [
     ),
     Tool(
         name="get_attachment",
-        description="获取指定附件的详细信息",
+        description="获取指定附件的详细信息。推荐用法：查看附件元数据与可用链接。",
         inputSchema={
             "type": "object",
             "properties": {
@@ -403,7 +403,7 @@ ATTACHMENT_TOOLS = [
     ),
     Tool(
         name="upload_attachment",
-        description="上传本地文件作为附件",
+        description="上传本地文件作为附件。推荐用法：通过本地路径上传；若未指定策略，默认 `default-policy`。",
         inputSchema={
             "type": "object",
             "properties": {
@@ -426,7 +426,7 @@ ATTACHMENT_TOOLS = [
     ),
     Tool(
         name="upload_attachment_from_url",
-        description="从 URL 上传附件",
+        description="从 URL 上传附件。推荐用法：直接拉取远端文件到附件库；支持分组与策略选择。",
         inputSchema={
             "type": "object",
             "properties": {
@@ -449,7 +449,7 @@ ATTACHMENT_TOOLS = [
     ),
     Tool(
         name="delete_attachment",
-        description="删除附件",
+        description="删除附件。推荐用法：删除不再需要的附件；注意可能存在引用关系。",
         inputSchema={
             "type": "object",
             "properties": {
@@ -463,7 +463,7 @@ ATTACHMENT_TOOLS = [
     ),
     Tool(
         name="list_attachment_groups",
-        description="列出附件分组",
+        description="列出附件分组。推荐用法：浏览分组并用于上传或检索时的分组过滤。",
         inputSchema={
             "type": "object",
             "properties": {
@@ -487,7 +487,7 @@ ATTACHMENT_TOOLS = [
     ),
     Tool(
         name="create_attachment_group",
-        description="创建附件分组",
+        description="创建附件分组。推荐用法：新增分组提升管理有序性；仅需显示名称。",
         inputSchema={
             "type": "object",
             "properties": {
@@ -501,7 +501,7 @@ ATTACHMENT_TOOLS = [
     ),
     Tool(
         name="get_attachment_policies",
-        description="获取存储策略列表",
+        description="获取存储策略列表。推荐用法：查看可用存储策略；选择上传时的目标策略。",
         inputSchema={
             "type": "object",
             "properties": {},

@@ -234,7 +234,7 @@ def _generate_title_generator_prompt(args: Dict[str, str]) -> str:
 **标题创作要求：**
 
 1. **吸引力**
-   - 激发读者好奇心
+   - 激发读者好奇
    - 突出文章价值
    - 使用有力的词汇
 
@@ -776,9 +776,9 @@ async def list_tools() -> list[Tool]:
                         "type": "string",
                         "description": "文章名称/标识符（必填）",
                     },
-                    "include_patched": {
+                    "patched": {
                         "type": "boolean",
-                        "description": "是否包含补丁内容（默认：false）",
+                        "description": "是否同时返回补丁（修订/差异）后的内容与原始内容（默认：false）",
                         "default": False,
                     },
                 },

@@ -45,7 +45,7 @@ async def get_halo_base_url_tool(client: HaloClient, args: Dict[str, Any]) -> st
 SITE_TOOLS = [
     Tool(
         name="get_halo_base_url",
-        description="获取当前 Halo 站点的基础链接地址（来源：环境变量 HALO_BASE_URL）",
+        description="获取当前 Halo 站点的基础链接地址（来源：环境变量 HALO_BASE_URL）。推荐用法：获取基准站点 URL，用于拼接外链、生成预览链接或调试环境差异。",
         inputSchema={
             "type": "object",
             "properties": {},

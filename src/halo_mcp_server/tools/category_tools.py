@@ -9,6 +9,7 @@ from mcp.types import Tool
 from halo_mcp_server.client.halo_client import HaloClient
 from halo_mcp_server.exceptions import HaloMCPError
 from halo_mcp_server.models.common import ToolResult
+from slugify import slugify
 
 
 async def list_categories(
@@ -288,7 +289,7 @@ async def get_category_posts(
 CATEGORY_TOOLS = [
     Tool(
         name="list_categories",
-        description="列出所有分类，支持分页和关键词搜索。返回结果中 items 列表的每个分类对象包含：'name' 字段（内部标识符，如 'category-yJfRu'）和 'display_name' 字段（显示名称，如 'Linux'）。重要：创建或更新文章时必须使用 'name' 字段作为分类标识符，而非 'display_name'。",
+        description="列出所有分类，支持分页和关键词搜索。返回结果中 items 列表的每个分类对象包含：'name' 字段（内部标识符，如 'category-yJfRu'）和 'display_name' 字段（显示名称，如 'Linux'）。重要：创建或更新文章时必须使用 'name' 字段作为分类标识符，而非 'display_name'。推荐用法：获取分类字典；配合文章创建/更新时选取正确的内部标识符。",
         inputSchema={
             "type": "object",
             "properties": {
@@ -316,7 +317,7 @@ CATEGORY_TOOLS = [
     ),
     Tool(
         name="get_category",
-        description="获取指定分类的详细信息",
+        description="获取指定分类的详细信息。推荐用法：查看某分类详情，用于校验或展示。",
         inputSchema={
             "type": "object",
             "properties": {
@@ -330,7 +331,7 @@ CATEGORY_TOOLS = [
     ),
     Tool(
         name="create_category",
-        description="创建新的分类",
+        description="创建新的分类。推荐用法：新增分类；可选 `slug`、`cover`、`template`、`priority` 等。",
         inputSchema={
             "type": "object",
             "properties": {
@@ -380,7 +381,7 @@ CATEGORY_TOOLS = [
     ),
     Tool(
         name="update_category",
-        description="更新现有分类的信息",
+        description="更新现有分类的信息。推荐用法：修改分类的显示名、描述、封面、排序与子分类列表等。",
         inputSchema={
             "type": "object",
             "properties": {
@@ -431,7 +432,7 @@ CATEGORY_TOOLS = [
     ),
     Tool(
         name="delete_category",
-        description="删除分类",
+        description="删除分类。推荐用法：删除指定分类；先确认无关键依赖。",
         inputSchema={
             "type": "object",
             "properties": {
@@ -445,7 +446,7 @@ CATEGORY_TOOLS = [
     ),
     Tool(
         name="get_category_posts",
-        description="获取指定分类下的文章列表",
+        description="获取指定分类下的文章列表。推荐用法：按分类浏览文章；支持分页与排序。",
         inputSchema={
             "type": "object",
             "properties": {
@@ -557,11 +558,24 @@ async def create_category_tool(client: HaloClient, args: Dict[str, Any]) -> str:
             error_result = ToolResult.error_result("错误：显示名称过长（最大 100 字符）")
             return error_result.model_dump_json()
 
-        slug = args.get("slug")
+        slug = args.get("slug") or slugify(display_name)
         description = args.get("description")
         cover = args.get("cover")
         template = args.get("template")
         priority = args.get("priority", 0)
+        try:
+            priority_int = int(priority)
+        except (TypeError, ValueError):
+            error_result = ToolResult.error_result("错误：priority 必须为整数")
+            return error_result.model_dump_json()
+        if priority_int < 0 or priority_int > 1000:
+            error_result = ToolResult.error_result("错误：priority 范围为 0–1000")
+            return error_result.model_dump_json()
+        priority = priority_int
+
+        hide_from_list = args.get("hide_from_list", False)
+        prevent_parent_post_cascade_query = args.get("prevent_parent_post_cascade_query", False)
+        children = args.get("children", [])
 
         logger.debug(f"正在创建分类：{display_name}")
 
@@ -572,10 +586,13 @@ async def create_category_tool(client: HaloClient, args: Dict[str, Any]) -> str:
             cover=cover,
             template=template,
             priority=priority,
+            hide_from_list=hide_from_list,
+            prevent_parent_post_cascade_query=prevent_parent_post_cascade_query,
+            children=children,
             client=client,
         )
 
-        category_name = result.get("name", "")
+        category_name = result.get("metadata", {}).get("name", "")
         success_result = ToolResult.success_result(
             f"✓ 分类 '{display_name}' 创建成功！",
             data={"category_name": category_name, "display_name": display_name},
@@ -606,11 +623,26 @@ async def update_category_tool(client: HaloClient, args: Dict[str, Any]) -> str:
             return error_result.model_dump_json()
 
         display_name = args.get("display_name")
+        if display_name and len(display_name) > 100:
+            error_result = ToolResult.error_result("错误：显示名称过长（最大 100 字符）")
+            return error_result.model_dump_json()
+
         slug = args.get("slug")
         description = args.get("description")
         cover = args.get("cover")
         template = args.get("template")
         priority = args.get("priority")
+        if priority is not None:
+            try:
+                priority_int = int(priority)
+            except (TypeError, ValueError):
+                error_result = ToolResult.error_result("错误：priority 必须为整数")
+                return error_result.model_dump_json()
+            if priority_int < 0 or priority_int > 1000:
+                error_result = ToolResult.error_result("错误：priority 范围为 0–1000")
+                return error_result.model_dump_json()
+            priority = priority_int
+
         hide_from_list = args.get("hide_from_list")
         prevent_parent_post_cascade_query = args.get("prevent_parent_post_cascade_query")
         children = args.get("children")
@@ -631,8 +663,9 @@ async def update_category_tool(client: HaloClient, args: Dict[str, Any]) -> str:
             client=client,
         )
 
+        updated_display_name = result.get("spec", {}).get("displayName", name)
         success_result = ToolResult.success_result(
-            f"✓ 分类 '{name}' 更新成功！",
+            f"✓ 分类 '{updated_display_name}' 更新成功！",
             data={"category_name": name, "updated": True},
         )
         return success_result.model_dump_json()

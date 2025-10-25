@@ -11,6 +11,8 @@ from mcp.types import Tool
 from halo_mcp_server.client.halo_client import HaloClient
 from halo_mcp_server.exceptions import HaloMCPError
 from halo_mcp_server.models.common import ToolResult
+import re
+from slugify import slugify
 
 
 async def list_tags(
@@ -229,7 +231,7 @@ async def get_tag_posts(
     """
     try:
         client = client or HaloClient()
-        await client.ensure_authenticated()
+        # 公共接口无需强制认证
 
         params = {"page": page, "size": size}
         if sort:
@@ -290,7 +292,7 @@ async def list_console_tags(
 TAG_TOOLS = [
     Tool(
         name="list_tags",
-        description="列出所有标签，支持分页和关键词搜索。返回结果中 items 列表的每个标签对象包含：metadata.name 字段（内部标识符，如 'tag-LrsQn' 或 'c33ceabb-d8f1-4711-8991-bb8f5c92ad7c'）和 spec.displayName 字段（显示名称，如 'Linux'）。重要：创建或更新文章时必须使用 metadata.name 字段作为标签标识符，而非 spec.displayName。",
+        description="列出所有标签，支持分页和关键词搜索。返回结果中 items 列表的每个标签对象包含：`metadata.name` 字段（内部标识符，如 'tag-LrsQn' 或 'c33ceabb-d8f1-4711-8991-bb8f5c92ad7c'）和 `spec.displayName` 字段（显示名称，如 'Linux'）。重要：创建或更新文章时必须使用 `metadata.name` 字段作为标签标识符，而非 `spec.displayName`。推荐用法：获取标签字典；用于文章的标签选择与校验。",
         inputSchema={
             "type": "object",
             "properties": {
@@ -318,7 +320,7 @@ TAG_TOOLS = [
     ),
     Tool(
         name="get_tag",
-        description="获取指定标签的详细信息",
+        description="获取指定标签的详细信息。推荐用法：查看标签详情，用于展示或管理。",
         inputSchema={
             "type": "object",
             "properties": {
@@ -332,7 +334,7 @@ TAG_TOOLS = [
     ),
     Tool(
         name="create_tag",
-        description="创建新的标签",
+        description="创建新的标签。推荐用法：新增标签；可选 `slug`、`color`、`cover`。",
         inputSchema={
             "type": "object",
             "properties": {
@@ -358,7 +360,7 @@ TAG_TOOLS = [
     ),
     Tool(
         name="update_tag",
-        description="更新现有标签的信息",
+        description="更新现有标签的信息。推荐用法：修改标签显示名、别名、颜色与封面等。",
         inputSchema={
             "type": "object",
             "properties": {
@@ -388,7 +390,7 @@ TAG_TOOLS = [
     ),
     Tool(
         name="delete_tag",
-        description="删除标签",
+        description="删除标签。推荐用法：删除指定标签；谨慎确认未被大量使用。",
         inputSchema={
             "type": "object",
             "properties": {
@@ -402,7 +404,7 @@ TAG_TOOLS = [
     ),
     Tool(
         name="get_tag_posts",
-        description="获取指定标签下的文章列表",
+        description="获取指定标签下的文章列表。推荐用法：按标签浏览文章；支持分页与排序。",
         inputSchema={
             "type": "object",
             "properties": {
@@ -431,7 +433,7 @@ TAG_TOOLS = [
     ),
     Tool(
         name="list_console_tags",
-        description="列出控制台标签（用于后台管理），支持分页和关键词搜索",
+        description="列出控制台标签（用于后台管理），支持分页和关键词搜索。推荐用法：管理后台场景下的标签查询；与公开标签列表区分使用。",
         inputSchema={
             "type": "object",
             "properties": {
@@ -536,9 +538,19 @@ async def create_tag_tool(client: HaloClient, args: Dict[str, Any]) -> str:
             error_result = ToolResult.error_result("错误：缺少参数 'display_name'")
             return error_result.model_dump_json()
 
-        slug = args.get("slug")
+        if len(display_name) > 100:
+            error_result = ToolResult.error_result("错误：显示名称过长（最大 100 字符）")
+            return error_result.model_dump_json()
+
+        slug = args.get("slug") or slugify(display_name)
         color = args.get("color")
         cover = args.get("cover")
+
+        if color and not re.match(r"^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$", color):
+            error_result = ToolResult.error_result(
+                "错误：color 必须是 3 或 6 位十六进制颜色，如 #FFF 或 #FF0000"
+            )
+            return error_result.model_dump_json()
 
         logger.debug(f"正在创建标签：{display_name}")
 
@@ -577,9 +589,19 @@ async def update_tag_tool(client: HaloClient, args: Dict[str, Any]) -> str:
             return error_result.model_dump_json()
 
         display_name = args.get("display_name")
+        if display_name and len(display_name) > 100:
+            error_result = ToolResult.error_result("错误：显示名称过长（最大 100 字符）")
+            return error_result.model_dump_json()
+
         slug = args.get("slug")
         color = args.get("color")
         cover = args.get("cover")
+
+        if color and not re.match(r"^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$", color):
+            error_result = ToolResult.error_result(
+                "错误：color 必须是 3 或 6 位十六进制颜色，如 #FFF 或 #FF0000"
+            )
+            return error_result.model_dump_json()
 
         logger.debug(f"正在更新标签：{name}")
 

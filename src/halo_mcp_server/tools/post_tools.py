@@ -549,11 +549,11 @@ async def get_post_draft_tool(client: HaloClient, args: Dict[str, Any]) -> str:
             return validation.model_dump_json()
 
         name = args.get("name")
-        include_patched = args.get("include_patched", False)
+        patched = args.get("patched", False)
 
         logger.debug(f"获取文章草稿：{name}")
 
-        result = await client.get_post_draft(name, include_patched)
+        result = await client.get_post_draft(name, patched)
         return json.dumps(result, ensure_ascii=False, indent=2)
 
     except Exception as e:
@@ -645,7 +645,7 @@ from mcp.types import Tool
 POST_TOOLS = [
     Tool(
         name="list_my_posts",
-        description="列出当前用户的所有文章，支持按发布状态、关键词和分类筛选",
+        description="列出当前用户的所有文章，支持按发布状态、关键词和分类筛选。推荐用法：浏览或检索我的文章列表；结合 `publish_phase`、`keyword`、`category` 过滤。",
         inputSchema={
             "type": "object",
             "properties": {
@@ -677,7 +677,7 @@ POST_TOOLS = [
     ),
     Tool(
         name="get_post",
-        description="获取指定文章的详细信息，包括内容、元数据和设置",
+        description="获取指定文章的详细信息，包括内容、元数据和设置。推荐用法：查看某篇文章的完整数据，用于后续更新或发布决策。",
         inputSchema={
             "type": "object",
             "properties": {
@@ -691,7 +691,7 @@ POST_TOOLS = [
     ),
     Tool(
         name="create_post",
-        description="创建一篇新的文章，内容推荐使用 HTML 富文本（兼容 ProseMirror + CodeMirror），也支持 Markdown",
+        description="创建一篇新的文章，内容推荐使用 HTML 富文本（兼容 ProseMirror + CodeMirror），也支持 Markdown。推荐用法：新建文章；若传 Markdown，设 `content_format=MARKDOWN`，或用 `AUTO` 自动识别。",
         inputSchema={
             "type": "object",
             "properties": {
@@ -758,7 +758,7 @@ POST_TOOLS = [
     ),
     Tool(
         name="update_post",
-        description="更新现有文章的标题、内容（推荐 HTML 富文本，兼容 ProseMirror + CodeMirror，也支持 Markdown）、分类、标签或其他设置",
+        description="更新现有文章的标题、内容（推荐 HTML 富文本，兼容 ProseMirror + CodeMirror，也支持 Markdown）、分类、标签或其他设置。推荐用法：局部或整体修改文章；同时可更新分类、标签、封面、摘要等元数据。",
         inputSchema={
             "type": "object",
             "properties": {
@@ -817,7 +817,7 @@ POST_TOOLS = [
     ),
     Tool(
         name="publish_post",
-        description="发布草稿文章，使其公开可见",
+        description="发布草稿文章，使其公开可见。推荐用法：将草稿上线；需传文章 `name`。",
         inputSchema={
             "type": "object",
             "properties": {
@@ -831,7 +831,7 @@ POST_TOOLS = [
     ),
     Tool(
         name="unpublish_post",
-        description="取消发布文章，将其转换回草稿状态",
+        description="取消发布文章，将其转换回草稿状态。推荐用法：将已发布文章退回草稿；用于暂时下线。",
         inputSchema={
             "type": "object",
             "properties": {
@@ -845,7 +845,7 @@ POST_TOOLS = [
     ),
     Tool(
         name="delete_post",
-        description="删除文章（移至回收站）",
+        description="删除文章（移至回收站）。推荐用法：回收站删除；谨慎使用，传 `name` 即可。",
         inputSchema={
             "type": "object",
             "properties": {
@@ -859,7 +859,7 @@ POST_TOOLS = [
     ),
     Tool(
         name="get_post_draft",
-        description="获取文章的草稿版本及可编辑内容",
+        description="获取文章的草稿版本及可编辑内容。推荐用法：拉取草稿编辑态；必要时 `patched=true` 查看补丁（修订/差异）信息。",
         inputSchema={
             "type": "object",
             "properties": {
@@ -867,9 +867,9 @@ POST_TOOLS = [
                     "type": "string",
                     "description": "文章名称/标识符（必填）",
                 },
-                "include_patched": {
+                "patched": {
                     "type": "boolean",
-                    "description": "是否包含补丁内容（默认：false）",
+                    "description": "是否同时返回补丁（修订/差异）后的内容与原始内容（默认：false）",
                     "default": False,
                 },
             },
@@ -878,7 +878,7 @@ POST_TOOLS = [
     ),
     Tool(
         name="update_post_draft",
-        description="更新文章草稿内容（推荐 HTML 富文本，兼容 ProseMirror + CodeMirror，也支持 Markdown），不会发布",
+        description="更新文章草稿内容（推荐 HTML 富文本，兼容 ProseMirror + CodeMirror，也支持 Markdown），不会发布。推荐用法：仅更新草稿内容，不影响线上版本；支持 `content_format` 选择或 `AUTO`。",
         inputSchema={
             "type": "object",
             "properties": {
