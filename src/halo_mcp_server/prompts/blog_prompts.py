@@ -186,7 +186,7 @@ BLOG_PROMPTS = [
             ),
             PromptArgument(
                 name="preserve_formatting",
-                description="是否保持 Markdown 格式（默认：是）",
+                description="是否保持 HTML 结构与样式（兼容 ProseMirror + CodeMirror，默认：是）",
                 required=False,
             ),
             PromptArgument(

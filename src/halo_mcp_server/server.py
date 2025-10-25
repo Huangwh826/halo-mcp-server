@@ -128,7 +128,7 @@ def _generate_writing_assistant_prompt(args: Dict[str, str]) -> str:
    - 提供行动建议或下一步指导
 
 **写作要求：**
-- 使用 Markdown 格式
+- 使用 HTML 富文本（兼容 ProseMirror + CodeMirror）
 - 语言{tone}，适合{target_audience}
 - 包含适当的代码示例（如果适用）
 - 添加相关的图片描述或图表说明
@@ -427,7 +427,7 @@ def _generate_content_translator_prompt(args: Dict[str, str]) -> str:
    - 确保术语一致性
 
 4. **格式保持**
-   {"- 保持 Markdown 格式不变" if preserve_formatting == "是" else "- 可以调整格式以适应目标语言"}
+   {"- 保持 HTML 结构不变（兼容 ProseMirror + CodeMirror）" if preserve_formatting == "是" else "- 可以调整格式以适应目标语言"}
    - 保持代码块和链接
    - 维护列表和表格结构
 
@@ -476,7 +476,7 @@ def _generate_content_proofreader_prompt(args: Dict[str, str]) -> str:
    - 论述是否完整
 
 5. **格式检查**
-   - Markdown 格式是否正确
+   - HTML 结构是否正确（兼容 ProseMirror + CodeMirror）
    - 标题层级是否合理
    - 列表格式是否统一
 
@@ -600,7 +600,7 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="create_post",
-            description="创建一篇新的博客文章，包括标题、内容、分类、标签等设置",
+            description="创建一篇新的博客文章（内容推荐使用 HTML 富文本，兼容 ProseMirror + CodeMirror，也支持 Markdown），包括标题、内容、分类、标签等设置",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -610,7 +610,7 @@ async def list_tools() -> list[Tool]:
                     },
                     "content": {
                         "type": "string",
-                        "description": "文章内容，Markdown 格式（必填）",
+                        "description": "文章内容，推荐使用 HTML 富文本（兼容 ProseMirror + CodeMirror），也支持 Markdown（必填）",
                     },
                     "excerpt": {
                         "type": "string",
@@ -629,6 +629,12 @@ async def list_tools() -> list[Tool]:
                         "type": "array",
                         "items": {"type": "string"},
                         "description": "标签名称列表",
+                    },
+                    "content_format": {
+                        "type": "string",
+                        "description": "内容格式：MARKDOWN、HTML 或 AUTO（默认：HTML）",
+                        "enum": ["MARKDOWN", "HTML", "AUTO"],
+                        "default": "HTML",
                     },
                     "cover": {
                         "type": "string",
@@ -661,7 +667,7 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="update_post",
-            description="更新现有文章的标题、内容、分类、标签或其他设置",
+            description="更新现有文章（内容推荐使用 HTML 富文本，兼容 ProseMirror + CodeMirror，也支持 Markdown），包括标题、内容、分类、标签或其他设置",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -675,7 +681,7 @@ async def list_tools() -> list[Tool]:
                     },
                     "content": {
                         "type": "string",
-                        "description": "新内容，Markdown 格式",
+                        "description": "新内容，推荐使用 HTML 富文本（兼容 ProseMirror + CodeMirror），也支持 Markdown",
                     },
                     "excerpt": {
                         "type": "string",
@@ -689,7 +695,13 @@ async def list_tools() -> list[Tool]:
                     "tags": {
                         "type": "array",
                         "items": {"type": "string"},
-                        "description": "新标签名称列表",
+                        "description": "新标签列表（使用标签的内部标识符 metadata.name）",
+                    },
+                    "content_format": {
+                        "type": "string",
+                        "description": "内容格式：MARKDOWN、HTML 或 AUTO（默认：HTML）",
+                        "enum": ["MARKDOWN", "HTML", "AUTO"],
+                        "default": "HTML",
                     },
                     "cover": {
                         "type": "string",
@@ -775,7 +787,7 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="update_post_draft",
-            description="更新文章的草稿内容，不会发布",
+            description="更新文章草稿内容（推荐使用 HTML 富文本，兼容 ProseMirror + CodeMirror，也支持 Markdown），不会发布",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -785,7 +797,7 @@ async def list_tools() -> list[Tool]:
                     },
                     "content": {
                         "type": "string",
-                        "description": "草稿内容，Markdown 格式（必填）",
+                        "description": "草稿内容，推荐使用 HTML 富文本（兼容 ProseMirror + CodeMirror），也支持 Markdown（必填）",
                     },
                 },
                 "required": ["name", "content"],
