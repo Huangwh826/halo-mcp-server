@@ -8,6 +8,11 @@
   - 读取环境变量 `HALO_BASE_URL` 并返回规范化的站点基础链接
   - 无需参数，返回 `ToolResult`，包含来源（env/default）与原始 env 值
 - chore(server): 在 `list_tools` 注册并在 `call_tool` 路由处理
+- feat(post): 增强文章管理工具支持 Markdown 和 HTML 内容
+  - 添加 markdown-it-py 及相关插件作为新的 Markdown 渲染引擎
+  - 实现内容格式自动检测和指定格式支持
+  - 更新参数校验逻辑和错误提示信息
+  - 添加新的依赖项到 pyproject.toml
 
 ### 使用示例
 - 工具名称：`get_halo_base_url`
