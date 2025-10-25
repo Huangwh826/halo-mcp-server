@@ -769,7 +769,7 @@ async def list_storage_policies_tool(client: HaloClient, args: Dict[str, Any]) -
     """
     try:
         logger.debug("正在列出存储策略")
-        result = await list_storage_policies(client=client)
+        result = await get_attachment_policies(client=client)
         return json.dumps(result, ensure_ascii=False, indent=2)
 
     except Exception as e:

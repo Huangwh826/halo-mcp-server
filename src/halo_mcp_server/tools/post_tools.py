@@ -1,4 +1,5 @@
-"""Post management tools for Halo MCP Server."""
+# -*- coding: utf-8 -*-
+"""Halo MCP Server 的文章管理工具。"""
 
 import json
 import re
@@ -14,97 +15,118 @@ from halo_mcp_server.models.common import ToolResult
 
 
 def markdown_to_html(md_text: str) -> str:
-    """
-    Convert Markdown to HTML.
-
-    Args:
-        md_text: Markdown text
-
-    Returns:
-        HTML content
-    """
+    """使用 markdown-it-py（含常用扩展）将 Markdown 转为 HTML。"""
+    # 空内容直接返回空字符串
     if not md_text:
         return ""
-
     try:
-        # Configure markdown extensions for better rendering
-        extensions = [
-            "markdown.extensions.extra",
-            "markdown.extensions.codehilite",
-            "markdown.extensions.toc",
-            "markdown.extensions.tables",
-        ]
+        from markdown_it import MarkdownIt
+        from mdit_py_plugins.anchors import anchors_plugin
+        from mdit_py_plugins.footnote import footnote_plugin
+        from mdit_py_plugins.front_matter import front_matter_plugin
+        from mdit_py_plugins.tasklists import tasklists_plugin
+        from mdit_py_plugins.texmath import texmath_plugin
+        from mdit_py_toc import toc_plugin
 
-        html = markdown.markdown(md_text, extensions=extensions)
-        return html
+        md = (
+            MarkdownIt("gfm-like", {"linkify": True, "breaks": False, "html": True})
+            .use(anchors_plugin, max_level=6)
+            .use(footnote_plugin)
+            .use(front_matter_plugin)
+            .use(tasklists_plugin)
+            .use(texmath_plugin)
+            .use(toc_plugin)
+        )
+        md.enable("table")
+        return md.render(md_text)
     except Exception as e:
-        logger.warning(f"Failed to convert markdown to HTML: {e}")
-        return md_text
+        logger.warning(f"markdown-it-py 渲染失败，回退到 Python-Markdown：{e}")
+        try:
+            # 采用用户指定的 Python-Markdown 扩展组合作为兜底
+            return markdown.markdown(
+                md_text,
+                extensions=[
+                    "markdown.extensions.extra",
+                    "markdown.extensions.codehilite",
+                    "markdown.extensions.toc",
+                    "markdown.extensions.tables",
+                ],
+            )
+        except Exception as e2:
+            logger.warning(f"Markdown 转换为 HTML 失败：{e2}")
+            return md_text
+
+
+def looks_like_html(text: str) -> bool:
+    """HTML 内容的启发式检测。
+    - 检查是否以 '<' 开头、是否包含常见 HTML 标签或闭合标签。
+    """
+    if not text:
+        return False
+    sample = text.strip()
+    if sample.startswith("<") and ">" in sample:
+        html_tag_patterns = [
+            "<p",
+            "<div",
+            "<span",
+            "<h1",
+            "<h2",
+            "<h3",
+            "<h4",
+            "<h5",
+            "<h6",
+            "<ul",
+            "<ol",
+            "<li",
+            "<a",
+            "<img",
+            "<code",
+            "<pre",
+            "<blockquote",
+        ]
+        lower = sample.lower()
+        if any(tag in lower for tag in html_tag_patterns):
+            return True
+    return bool(re.search(r"</[a-zA-Z][^>]*>", sample))
 
 
 def _validate_post_params(args: Dict[str, Any], required_fields: list = None) -> ToolResult:
-    """
-    Validate post parameters.
-
-    Args:
-        args: Parameters to validate
-        required_fields: List of required field names
-
-    Returns:
-        ToolResult with validation result
-    """
     if required_fields:
         for field in required_fields:
-            if not args.get(field):
-                return ToolResult.error_result(f"Error: '{field}' parameter is required")
+            if field not in args or args[field] is None:
+                return ToolResult.error_result(f"错误：缺少必填参数 '{field}'")
 
-    # Validate title length
+    # 基础类型与长度校验
     title = args.get("title")
-    if title and len(title) > 255:
-        return ToolResult.error_result("Error: Title too long (max 255 characters)")
+    if title and len(title) > 256:
+        return ToolResult.error_result("错误：标题过长（最多 256 字符）")
 
-    # Validate slug format
-    slug = args.get("slug")
-    if slug and not re.match(r"^[a-z0-9-]+$", slug):
-        return ToolResult.error_result(
-            "Error: Invalid slug format (only lowercase letters, numbers, and hyphens allowed)"
-        )
-
-    # Validate cover URL format
-    cover = args.get("cover")
-    if cover and not cover.startswith(("http://", "https://")):
-        return ToolResult.error_result(
-            "Error: Cover must be a valid URL starting with http:// or https://"
-        )
-
-    # Validate excerpt length
-    excerpt = args.get("excerpt")
-    if excerpt and len(excerpt) > 500:
-        return ToolResult.error_result("Error: Excerpt too long (max 500 characters)")
-
-    # Validate content length
     content = args.get("content")
-    if content and len(content) > 100000:  # 100KB limit
-        return ToolResult.error_result("Error: Content too long (max 100KB)")
+    if content and len(content) > 100000:
+        return ToolResult.error_result("错误：内容过长（最多 100000 字符）")
 
-    # Validate visible enum
     visible = args.get("visible")
     if visible and visible not in ["PUBLIC", "PRIVATE"]:
-        return ToolResult.error_result("Error: Visible must be either 'PUBLIC' or 'PRIVATE'")
+        return ToolResult.error_result("错误：可见性必须是 'PUBLIC' 或 'PRIVATE'")
 
-    return ToolResult.success_result("Validation passed")
+    # 如提供 content_format 则进行校验
+    cf = args.get("content_format")
+    if cf and cf not in ["MARKDOWN", "HTML", "AUTO"]:
+        return ToolResult.error_result("错误：content_format 必须是 'MARKDOWN'、'HTML' 或 'AUTO'")
+
+    return ToolResult.success_result("验证通过")
 
 
 async def list_my_posts_tool(client: HaloClient, args: Dict[str, Any]) -> str:
     """
-    List user's posts.
+    列出用户的文章。
 
-    Args:
-        client: Halo API client
-        args: Tool arguments
+    参数:
+        client: Halo API 客户端
+        args: 工具参数
 
-    Returns:
-        JSON string of posts list
+    返回:
+        文章列表的 JSON 字符串
     """
     try:
         page = args.get("page", 0)
@@ -113,7 +135,7 @@ async def list_my_posts_tool(client: HaloClient, args: Dict[str, Any]) -> str:
         keyword = args.get("keyword")
         category = args.get("category")
 
-        logger.debug(f"Listing posts: page={page}, size={size}")
+        logger.debug(f"正在列出文章：page={page}, size={size}")
 
         result = await client.list_my_posts(
             page=page,
@@ -123,18 +145,18 @@ async def list_my_posts_tool(client: HaloClient, args: Dict[str, Any]) -> str:
             category=category,
         )
 
-        # Format the result for better readability
+        # 为了更好地可读性，对结果进行格式化
         posts = result.get("items", [])
         formatted_posts = []
 
         for item in posts:
-            # The actual post data is nested in the 'post' field
+            # 实际的文章数据嵌套在 'post' 字段中
             post_data = item.get("post", {})
             spec = post_data.get("spec", {})
             status = post_data.get("status", {})
             metadata = post_data.get("metadata", {})
 
-            # Additional fields from the item level
+            # 来自 item 层的附加字段
             categories = item.get("categories", [])
             tags = item.get("tags", [])
             owner = item.get("owner", {})
@@ -162,7 +184,7 @@ async def list_my_posts_tool(client: HaloClient, args: Dict[str, Any]) -> str:
                 "version": metadata.get("version", 0),
                 "owner": owner.get("displayName", owner.get("name", "")),
                 "stats": stats,
-                # Additional metadata for filtering
+                # 额外的筛选用元数据
                 "labels": metadata.get("labels", {}),
                 "is_deleted": metadata.get("labels", {}).get("content.halo.run/deleted") == "true",
                 "is_published": metadata.get("labels", {}).get("content.halo.run/published")
@@ -175,44 +197,44 @@ async def list_my_posts_tool(client: HaloClient, args: Dict[str, Any]) -> str:
         return json.dumps(result, ensure_ascii=False, indent=2)
 
     except Exception as e:
-        logger.error(f"Error listing posts: {e}", exc_info=True)
-        error_result = ToolResult.error_result(f"Error: {str(e)}")
+        logger.error(f"列出文章时发生错误：{e}", exc_info=True)
+        error_result = ToolResult.error_result(f"错误：{str(e)}")
         return error_result.model_dump_json()
 
 
 async def get_post_tool(client: HaloClient, args: Dict[str, Any]) -> str:
-    """Get post details."""
+    """获取文章详情。"""
     try:
-        # Validate parameters
+        # 参数校验
         validation = _validate_post_params(args, required_fields=["name"])
         if not validation.success:
             return validation.model_dump_json()
 
         name = args.get("name")
-        logger.debug(f"Getting post: {name}")
+        logger.debug(f"获取文章：{name}")
 
         result = await client.get_post(name)
         return json.dumps(result, ensure_ascii=False, indent=2)
 
     except Exception as e:
-        logger.error(f"Error getting post: {e}", exc_info=True)
-        error_result = ToolResult.error_result(f"Error: {str(e)}")
+        logger.error(f"获取文章出错：{e}", exc_info=True)
+        error_result = ToolResult.error_result(f"错误：{str(e)}")
         return error_result.model_dump_json()
 
 
 async def create_post_tool(client: HaloClient, args: Dict[str, Any]) -> str:
     """
-    Create a new post.
+    创建一篇新文章。
 
-    Args:
-        client: Halo API client
-        args: Tool arguments
+    参数:
+        client: Halo API 客户端
+        args: 工具参数
 
-    Returns:
-        Result message
+    返回:
+        操作结果消息
     """
     try:
-        # Validate parameters
+        # 参数校验
         validation = _validate_post_params(args, required_fields=["title", "content"])
         if not validation.success:
             return validation.model_dump_json()
@@ -220,10 +242,36 @@ async def create_post_tool(client: HaloClient, args: Dict[str, Any]) -> str:
         title = args.get("title")
         content = args.get("content")
 
-        # Generate slug if not provided
+        # 若未提供则自动生成 slug
         slug = args.get("slug") or slugify(title)
 
-        # Build post data - 参考Java版本的正确结构
+        # 判定内容格式并渲染
+        content_format = (args.get("content_format") or "MARKDOWN").upper()
+        if content_format not in ["MARKDOWN", "HTML", "AUTO"]:
+            return ToolResult.error_result(
+                "错误：content_format 必须是 'MARKDOWN'、'HTML' 或 'AUTO'"
+            ).model_dump_json()
+        if content_format == "AUTO":
+            is_html = looks_like_html(content)
+        else:
+            is_html = content_format == "HTML"
+
+        if is_html:
+            html_content = content
+            content_obj = {
+                "raw": html_content,
+                "content": html_content,
+                "rawType": "HTML",
+            }
+        else:
+            html_content = markdown_to_html(content)
+            content_obj = {
+                "raw": html_content,
+                "content": html_content,
+                "rawType": "HTML",
+            }
+
+        # 构建文章数据 - 参考 Java 版本的正确结构
         # 注意：post 和 content 是两个独立的对象！
         post_data = {
             "post": {
@@ -259,42 +307,42 @@ async def create_post_tool(client: HaloClient, args: Dict[str, Any]) -> str:
                 },
             },
             "content": {
-                "raw": markdown_to_html(content),  # Markdown 原文转换为HTML后的内容
-                "content": markdown_to_html(content),  # HTML 转换后的内容
-                "rawType": "HTML",
+                "raw": content_obj["raw"],
+                "content": content_obj["content"],
+                "rawType": content_obj["rawType"],
             },
         }
 
-        logger.debug(f"Creating post: {title}")
+        logger.debug(f"正在创建文章：{title}")
 
         result = await client.create_post(post_data)
         post_name = result.get("metadata", {}).get("name", "")
 
-        # Publish immediately if requested
+        # 若请求则立即发布
         if args.get("publish_immediately", False):
             await client.publish_post(post_name)
             success_result = ToolResult.success_result(
-                f"✓ Post '{title}' created and published successfully!",
+                f"✓ 文章『{title}』创建并成功发布！",
                 data={"post_name": post_name, "published": True},
             )
             return success_result.model_dump_json()
 
         success_result = ToolResult.success_result(
-            f"✓ Post '{title}' created successfully as draft!",
+            f"✓ 文章『{title}』创建成功（草稿）！",
             data={"post_name": post_name, "published": False},
         )
         return success_result.model_dump_json()
 
     except Exception as e:
-        logger.error(f"Error creating post: {e}", exc_info=True)
-        error_result = ToolResult.error_result(f"Error: {str(e)}")
+        logger.error(f"创建文章出错：{e}", exc_info=True)
+        error_result = ToolResult.error_result(f"错误：{str(e)}")
         return error_result.model_dump_json()
 
 
 async def update_post_tool(client: HaloClient, args: Dict[str, Any]) -> str:
-    """Update an existing post."""
+    """更新现有文章。"""
     try:
-        # Validate parameters
+        # 参数校验
         validation = _validate_post_params(args, required_fields=["name"])
         if not validation.success:
             return validation.model_dump_json()
@@ -302,10 +350,10 @@ async def update_post_tool(client: HaloClient, args: Dict[str, Any]) -> str:
         name = args.get("name")
         has_content_update = "content" in args
 
-        # Get current post
+        # 获取当前文章
         post = await client.get_post(name)
 
-        # Update metadata fields
+        # 更新元数据字段
         spec = post.get("spec", {})
         metadata_updated = False
 
@@ -336,151 +384,166 @@ async def update_post_tool(client: HaloClient, args: Dict[str, Any]) -> str:
             spec["visible"] = args["visible"]
             metadata_updated = True
 
-        # Update metadata if there are changes
+        # 如有变更则更新元数据
         if metadata_updated:
-            logger.debug(f"Updating post metadata: {name}")
+            logger.debug(f"更新文章元数据：{name}")
             await client.update_post(name, post)
 
-        # Update content if provided (must use draft API)
+        # 如提供内容则更新（需使用草稿 API）
         if has_content_update:
-            logger.debug(f"Updating post content: {name}")
+            logger.debug(f"更新文章内容：{name}")
 
-            # Get current draft
+            # 获取当前草稿
             current_draft = await client.get_post_draft(name, patched=False)
 
-            # Convert Markdown to HTML
+            # 判定内容格式并渲染
             content = args["content"]
-            html_content = markdown_to_html(content)
+            content_format = (args.get("content_format") or "MARKDOWN").upper()
+            if content_format not in ["MARKDOWN", "HTML", "AUTO"]:
+                return ToolResult.error_result(
+                    "错误：content_format 必须是 'MARKDOWN'、'HTML' 或 'AUTO'"
+                ).model_dump_json()
+            if content_format == "AUTO":
+                is_html = looks_like_html(content)
+            else:
+                is_html = content_format == "HTML"
+
+            if is_html:
+                html_content = content
+                content_obj = {"raw": html_content, "content": html_content, "rawType": "HTML"}
+                raw_type = "HTML"
+                raw_patch = html_content
+                content_patch = html_content
+            else:
+                html_content = markdown_to_html(content)
+                content_obj = {"raw": html_content, "content": html_content, "rawType": "HTML"}
+                raw_type = "HTML"
+                raw_patch = html_content
+                content_patch = html_content
 
             # 根据 API 文档,需要在 metadata.annotations 中设置 "content.halo.run/content-json"
-            # Content 对象结构: {"raw": "...", "content": "...", "rawType": "HTML"}
             metadata = current_draft.get("metadata", {})
             if "annotations" not in metadata:
                 metadata["annotations"] = {}
 
-            # 设置 content-json annotation (必须是 JSON 字符串)
-            content_obj = {
-                "raw": html_content,  # HTML 内容（与content字段保持一致）
-                "content": html_content,  # HTML 内容
-                "rawType": "HTML",  # 原始类型
-            }
+            # 设置 content-json 注解（必须是 JSON 字符串）
             metadata["annotations"]["content.halo.run/content-json"] = json.dumps(
                 content_obj, ensure_ascii=False
             )
 
-            logger.debug(f"Setting content-json annotation with {len(content)} chars")
+            logger.debug(f"设置 content-json 注解，原始内容长度 {len(content)} 字符")
 
-            # Update draft - 需要补充 spec 的 patch 字段以应用内容
+            # 更新草稿 —— 需要补充 spec 的 patch 字段以应用内容
             draft_data = {
                 "apiVersion": current_draft.get("apiVersion", "content.halo.run/v1alpha1"),
                 "kind": current_draft.get("kind", "Snapshot"),
                 "metadata": metadata,
                 "spec": {
                     **current_draft.get("spec", {}),
-                    "rawType": "HTML",
-                    "rawPatch": html_content,
-                    "contentPatch": html_content,
+                    "rawType": raw_type,
+                    "rawPatch": raw_patch,
+                    "contentPatch": content_patch,
                     "lastModifyTime": datetime.now().isoformat() + "Z",
                 },
             }
 
-            logger.debug(f"Calling update_post_draft with content-json annotation")
+            logger.debug(f"调用 update_post_draft 并设置 content-json 注解")
             await client.update_post_draft(name, draft_data)
 
             # 重新发布以应用新内容
-            logger.debug(f"Re-publishing post to apply content changes: {name}")
+            logger.debug(f"重新发布文章以应用内容变更：{name}")
             await client.publish_post(name)
 
         success_result = ToolResult.success_result(
-            f"✓ Post '{name}' updated successfully!"
-            + (" Content has been updated and re-published." if has_content_update else ""),
+            f"✓ 文章『{name}』更新成功！"
+            + (" 内容已更新并重新发布。" if has_content_update else ""),
             data={"post_name": name, "content_updated": has_content_update},
         )
         return success_result.model_dump_json()
 
     except Exception as e:
-        logger.error(f"Error updating post: {e}", exc_info=True)
-        error_result = ToolResult.error_result(f"Error: {str(e)}")
+        logger.error(f"更新文章出错：{e}", exc_info=True)
+        error_result = ToolResult.error_result(f"错误：{str(e)}")
         return error_result.model_dump_json()
 
 
 async def publish_post_tool(client: HaloClient, args: Dict[str, Any]) -> str:
-    """Publish a post."""
+    """发布文章。"""
     try:
-        # Validate parameters
+        # 参数校验
         validation = _validate_post_params(args, required_fields=["name"])
         if not validation.success:
             return validation.model_dump_json()
 
         name = args.get("name")
-        logger.debug(f"Publishing post: {name}")
+        logger.debug(f"正在发布文章：{name}")
 
         await client.publish_post(name)
 
         success_result = ToolResult.success_result(
-            f"✓ Post '{name}' published successfully!", data={"post_name": name, "published": True}
+            f"✓ 文章『{name}』发布成功！", data={"post_name": name, "published": True}
         )
         return success_result.model_dump_json()
 
     except Exception as e:
-        logger.error(f"Error publishing post: {e}", exc_info=True)
-        error_result = ToolResult.error_result(f"Error: {str(e)}")
+        logger.error(f"发布文章出错：{e}", exc_info=True)
+        error_result = ToolResult.error_result(f"错误：{str(e)}")
         return error_result.model_dump_json()
 
 
 async def unpublish_post_tool(client: HaloClient, args: Dict[str, Any]) -> str:
-    """Unpublish a post."""
+    """取消发布文章。"""
     try:
-        # Validate parameters
+        # 参数校验
         validation = _validate_post_params(args, required_fields=["name"])
         if not validation.success:
             return validation.model_dump_json()
 
         name = args.get("name")
-        logger.debug(f"Unpublishing post: {name}")
+        logger.debug(f"正在取消发布文章：{name}")
 
         await client.unpublish_post(name)
 
         success_result = ToolResult.success_result(
-            f"✓ Post '{name}' unpublished successfully!",
+            f"✓ 文章『{name}』已取消发布！",
             data={"post_name": name, "published": False},
         )
         return success_result.model_dump_json()
 
     except Exception as e:
-        logger.error(f"Error unpublishing post: {e}", exc_info=True)
-        error_result = ToolResult.error_result(f"Error: {str(e)}")
+        logger.error(f"取消发布文章出错：{e}", exc_info=True)
+        error_result = ToolResult.error_result(f"错误：{str(e)}")
         return error_result.model_dump_json()
 
 
 async def delete_post_tool(client: HaloClient, args: Dict[str, Any]) -> str:
-    """Delete a post."""
+    """删除文章。"""
     try:
-        # Validate parameters
+        # 参数校验
         validation = _validate_post_params(args, required_fields=["name"])
         if not validation.success:
             return validation.model_dump_json()
 
         name = args.get("name")
-        logger.debug(f"Deleting post: {name}")
+        logger.debug(f"正在删除文章：{name}")
 
         await client.delete_post(name)
 
         success_result = ToolResult.success_result(
-            f"✓ Post '{name}' deleted successfully!", data={"post_name": name, "deleted": True}
+            f"✓ 文章『{name}』删除成功！", data={"post_name": name, "deleted": True}
         )
         return success_result.model_dump_json()
 
     except Exception as e:
-        logger.error(f"Error deleting post: {e}", exc_info=True)
-        error_result = ToolResult.error_result(f"Error: {str(e)}")
+        logger.error(f"删除文章出错：{e}", exc_info=True)
+        error_result = ToolResult.error_result(f"错误：{str(e)}")
         return error_result.model_dump_json()
 
 
 async def get_post_draft_tool(client: HaloClient, args: Dict[str, Any]) -> str:
-    """Get post draft content."""
+    """获取文章草稿内容。"""
     try:
-        # Validate parameters
+        # 参数校验
         validation = _validate_post_params(args, required_fields=["name"])
         if not validation.success:
             return validation.model_dump_json()
@@ -488,21 +551,21 @@ async def get_post_draft_tool(client: HaloClient, args: Dict[str, Any]) -> str:
         name = args.get("name")
         include_patched = args.get("include_patched", False)
 
-        logger.debug(f"Getting post draft: {name}")
+        logger.debug(f"获取文章草稿：{name}")
 
         result = await client.get_post_draft(name, include_patched)
         return json.dumps(result, ensure_ascii=False, indent=2)
 
     except Exception as e:
-        logger.error(f"Error getting post draft: {e}", exc_info=True)
-        error_result = ToolResult.error_result(f"Error: {str(e)}")
+        logger.error(f"获取文章草稿出错：{e}", exc_info=True)
+        error_result = ToolResult.error_result(f"错误：{str(e)}")
         return error_result.model_dump_json()
 
 
 async def update_post_draft_tool(client: HaloClient, args: Dict[str, Any]) -> str:
-    """Update post draft content."""
+    """更新文章草稿内容。"""
     try:
-        # Validate parameters
+        # 参数校验
         validation = _validate_post_params(args, required_fields=["name", "content"])
         if not validation.success:
             return validation.model_dump_json()
@@ -510,24 +573,41 @@ async def update_post_draft_tool(client: HaloClient, args: Dict[str, Any]) -> st
         name = args.get("name")
         content = args.get("content")
 
-        logger.debug(f"Updating post draft: {name}")
+        logger.debug(f"更新文章草稿：{name}")
 
         # 首先获取当前草稿
         current_draft = await client.get_post_draft(name, patched=False)
 
-        # 将 Markdown 转换为 HTML
-        html_content = markdown_to_html(content)
+        # 判定内容格式并渲染
+        content_format = (args.get("content_format") or "MARKDOWN").upper()
+        if content_format not in ["MARKDOWN", "HTML", "AUTO"]:
+            return ToolResult.error_result(
+                "错误：content_format 必须是 'MARKDOWN'、'HTML' 或 'AUTO'"
+            ).model_dump_json()
+        if content_format == "AUTO":
+            is_html = looks_like_html(content)
+        else:
+            is_html = content_format == "HTML"
+
+        if is_html:
+            html_content = content
+            content_obj = {"raw": html_content, "content": html_content, "rawType": "HTML"}
+            raw_type = "HTML"
+            raw_patch = html_content
+            content_patch = html_content
+        else:
+            html_content = markdown_to_html(content)
+            content_obj = {"raw": html_content, "content": html_content, "rawType": "HTML"}
+            raw_type = "HTML"
+            raw_patch = html_content
+            content_patch = html_content
 
         # 设置 content-json 注解（根据 API 要求必须设置）
         metadata = current_draft.get("metadata", {})
         if "annotations" not in metadata:
             metadata["annotations"] = {}
         metadata["annotations"]["content.halo.run/content-json"] = json.dumps(
-            {
-                "raw": html_content,
-                "content": html_content,
-                "rawType": "HTML",
-            },
+            content_obj,
             ensure_ascii=False,
         )
 
@@ -538,9 +618,9 @@ async def update_post_draft_tool(client: HaloClient, args: Dict[str, Any]) -> st
             "metadata": metadata,
             "spec": {
                 **current_draft.get("spec", {}),
-                "rawType": "HTML",
-                "rawPatch": html_content,  # 转换后的HTML内容（与contentPatch保持一致）
-                "contentPatch": html_content,  # 转换后的 HTML 内容
+                "rawType": raw_type,
+                "rawPatch": raw_patch,
+                "contentPatch": content_patch,
                 "lastModifyTime": datetime.now().isoformat() + "Z",
             },
         }
@@ -548,14 +628,14 @@ async def update_post_draft_tool(client: HaloClient, args: Dict[str, Any]) -> st
         await client.update_post_draft(name, draft_data)
 
         success_result = ToolResult.success_result(
-            f"✓ Post draft '{name}' updated successfully!",
+            f"✓ 文章草稿『{name}』更新成功！",
             data={"post_name": name, "draft_updated": True},
         )
         return success_result.model_dump_json()
 
     except Exception as e:
-        logger.error(f"Error updating post draft: {e}", exc_info=True)
-        error_result = ToolResult.error_result(f"Error: {str(e)}")
+        logger.error(f"更新文章草稿出错：{e}", exc_info=True)
+        error_result = ToolResult.error_result(f"错误：{str(e)}")
         return error_result.model_dump_json()
 
 
@@ -611,7 +691,7 @@ POST_TOOLS = [
     ),
     Tool(
         name="create_post",
-        description="创建一篇新的博客文章，包括标题、内容、分类、标签等设置",
+        description="创建一篇新的文章，内容支持 Markdown 或原生 HTML 富文本",
         inputSchema={
             "type": "object",
             "properties": {
@@ -621,7 +701,12 @@ POST_TOOLS = [
                 },
                 "content": {
                     "type": "string",
-                    "description": "文章内容，Markdown 格式（必填）",
+                    "description": "文章内容，支持 Markdown 或 HTML 富文本（必填）",
+                },
+                "content_format": {
+                    "type": "string",
+                    "description": "内容格式：MARKDOWN、HTML 或 AUTO（默认：MARKDOWN）",
+                    "enum": ["MARKDOWN", "HTML", "AUTO"],
                 },
                 "slug": {
                     "type": "string",
@@ -672,7 +757,7 @@ POST_TOOLS = [
     ),
     Tool(
         name="update_post",
-        description="更新现有文章的标题、内容、分类、标签或其他设置",
+        description="更新现有文章的标题、内容（支持 Markdown 或 HTML 富文本）、分类、标签或其他设置",
         inputSchema={
             "type": "object",
             "properties": {
@@ -686,7 +771,12 @@ POST_TOOLS = [
                 },
                 "content": {
                     "type": "string",
-                    "description": "新内容，Markdown 格式",
+                    "description": "新内容，支持 Markdown 或 HTML 富文本",
+                },
+                "content_format": {
+                    "type": "string",
+                    "description": "内容格式：MARKDOWN、HTML 或 AUTO（默认：MARKDOWN）",
+                    "enum": ["MARKDOWN", "HTML", "AUTO"],
                 },
                 "excerpt": {
                     "type": "string",
@@ -786,7 +876,7 @@ POST_TOOLS = [
     ),
     Tool(
         name="update_post_draft",
-        description="更新文章的草稿内容，不会发布",
+        description="更新文章草稿内容（支持 Markdown 或 HTML 富文本），不会发布",
         inputSchema={
             "type": "object",
             "properties": {
@@ -796,7 +886,12 @@ POST_TOOLS = [
                 },
                 "content": {
                     "type": "string",
-                    "description": "草稿内容，Markdown 格式（必填）",
+                    "description": "草稿内容，支持 Markdown 或 HTML 富文本（必填）",
+                },
+                "content_format": {
+                    "type": "string",
+                    "description": "内容格式：MARKDOWN、HTML 或 AUTO（默认：MARKDOWN）",
+                    "enum": ["MARKDOWN", "HTML", "AUTO"],
                 },
             },
             "required": ["name", "content"],

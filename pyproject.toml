@@ -36,6 +36,10 @@ dependencies = [
     "Pillow>=10.0.0",
     "python-slugify>=8.0.0",
     "markdown>=3.5.0",
+    "markdown-it-py>=4.0.0",
+    "mdit-py-plugins>=0.4.0",
+    "linkify-it-py>=2.0.0",
+    "mdit-py-toc>=0.1.0",
 ]
 
 [project.optional-dependencies]
