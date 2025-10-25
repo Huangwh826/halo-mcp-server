@@ -25,6 +25,7 @@ from halo_mcp_server.tools.post_tools import (
     POST_TOOLS,
 )
 from halo_mcp_server.tools.tag_tools import TAG_TOOLS
+from halo_mcp_server.tools.site_tools import SITE_TOOLS
 from halo_mcp_server.models.common import ToolResult
 
 
@@ -793,7 +794,7 @@ async def list_tools() -> list[Tool]:
     ]
 
     # Combine all tools
-    all_tools = POST_TOOLS + CATEGORY_TOOLS + TAG_TOOLS + ATTACHMENT_TOOLS
+    all_tools = POST_TOOLS + CATEGORY_TOOLS + TAG_TOOLS + ATTACHMENT_TOOLS + SITE_TOOLS
 
     logger.info(f"Registered {len(all_tools)} tools")
     return all_tools
@@ -914,6 +915,11 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> list[Any]:
             from .tools.attachment_tools import list_storage_policies_tool
 
             result = await list_storage_policies_tool(client, arguments)
+        # Site tools
+        elif name == "get_halo_base_url":
+            from .tools.site_tools import get_halo_base_url_tool
+
+            result = await get_halo_base_url_tool(client, arguments)
         else:
             return [{"type": "text", "text": f"Unknown tool: {name}"}]
 

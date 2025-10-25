@@ -1,5 +1,19 @@
 # 变更记录
 
+## v0.1.5（2025-10-25）
+
+
+### 变更内容
+- feat(site): 新增 MCP 工具 `get_halo_base_url`
+  - 读取环境变量 `HALO_BASE_URL` 并返回规范化的站点基础链接
+  - 无需参数，返回 `ToolResult`，包含来源（env/default）与原始 env 值
+- chore(server): 在 `list_tools` 注册并在 `call_tool` 路由处理
+
+### 使用示例
+- 工具名称：`get_halo_base_url`
+- 调用参数：`{}`
+- 返回示例：`{"success":true,"message":"已获取 Halo 站点链接地址","data":{"base_url":"https://example.com","source":"env","source_env_var":"HALO_BASE_URL","env_value":"https://example.com"}}`
+
 ## v0.1.4（2025-10-25）
 
 
