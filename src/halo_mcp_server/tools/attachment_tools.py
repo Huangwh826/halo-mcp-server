@@ -1,14 +1,29 @@
 """Halo MCP 附件管理工具"""
 
+import asyncio
+import mimetypes
+
+from halo_mcp_server.config import settings
+
 """Attachment management tools for Halo MCP."""
 
 import base64
 import json
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union, Tuple
 
 from loguru import logger
 from mcp.types import Tool
+import httpx
+
+# 从 exceptions 导入所有需要的错误类型
+from halo_mcp_server.exceptions import (
+    AuthenticationError,
+    AuthorizationError,
+    HaloMCPError,
+    NetworkError,
+    ResourceNotFoundError,
+)
 
 from halo_mcp_server.client.halo_client import HaloClient
 from halo_mcp_server.exceptions import HaloMCPError
@@ -92,75 +107,193 @@ async def upload_attachment(
     file_path: str,
     policy_name: str = "default-policy",
     group_name: Optional[str] = None,
-    client: Optional[HaloClient] = None,
+    client: Optional[HaloClient] = None,  # 仍然接收 client 以获取 base_url 和认证信息
 ) -> Dict[str, Any]:
     """
-    上传本地文件作为附件。
+    上传本地文件作为附件（参考 Console API 多表单上传）。
+    使用独立的 httpx.AsyncClient 并包含完整的状态校验。
 
     Args:
         file_path: 本地文件路径
         policy_name: 存储策略名称，默认为 "default-policy"
-        group_name: 附件分组名称
+        group_name: 附件分组名称（允许传空字符串）
+        client: Halo API 客户端实例 (用于获取配置和认证)
 
     Returns:
-        上传后的附件信息
+        上传后的附件信息 (JSON 字典)
 
     Raises:
-        HaloMCPError: 文件不存在或上传失败
+        HaloMCPError: 文件不存在或上传失败 (包装了底层错误)
+        AuthenticationError / AuthorizationError / ResourceNotFoundError / NetworkError: API 调用特定错误
     """
+    if not os.path.exists(file_path):
+        logger.error(f"Upload attachment failed: File not found at {file_path}")
+        raise HaloMCPError(f"File not found: {file_path}")
+
+    _client_instance = client or HaloClient()  # 获取或创建 client 实例
     try:
-        if not os.path.exists(file_path):
-            raise HaloMCPError(f"File not found: {file_path}")
+        await _client_instance.ensure_authenticated()  # 确保已认证
+    except Exception as auth_err:
+        logger.error(f"Authentication failed before upload: {auth_err}")
+        # 如果认证失败，直接抛出认证错误
+        if isinstance(auth_err, AuthenticationError):
+            raise
+        raise HaloMCPError(f"Authentication failed: {auth_err}") from auth_err
 
-        client = client or HaloClient()
-        await client.ensure_authenticated()
-
-        # 读取文件内容
+    # 读取文件内容
+    try:
         with open(file_path, "rb") as f:
             file_content = f.read()
+    except Exception as read_err:
+        logger.error(f"Failed to read file content from {file_path}: {read_err}")
+        raise HaloMCPError(f"无法读取文件: {file_path}, 原因: {read_err}") from read_err
 
-        # 获取文件名
-        filename = os.path.basename(file_path)
+    filename = os.path.basename(file_path)
 
-        # 准备multipart/form-data数据
-        files = {"file": (filename, file_content)}
+    # 猜测 MIME 类型
+    mimetype, _ = mimetypes.guess_type(file_path)
+    mimetype = mimetype or "application/octet-stream"
 
-        uc_error_obj: Optional[Exception] = None
+    # 准备 files_data 字典
+    files_data: Dict[
+        str, Union[Tuple[Optional[str], Any], Tuple[Optional[str], Any, Optional[str]]]
+    ] = {
+        "file": (filename, file_content, mimetype),
+        "policyName": (None, policy_name or "default-policy"),
+        "groupName": (None, group_name if group_name is not None else ""),
+    }
 
-        # 尝试使用 UC API 上传（用户中心API）
-        # 这个端点通常有更宽松的权限要求
-        try:
-            response = await client.post(
-                "/apis/uc.api.storage.halo.run/v1alpha1/attachments/-/upload",
-                files=files,
-            )
-            logger.info(f"Successfully uploaded via UC API: {filename}")
-            return response
-        except Exception as uc_error:
-            uc_error_obj = uc_error
-            logger.warning(f"UC API upload failed: {uc_error}, trying Console API")
+    # 准备 headers (仅包含认证)
+    auth_token = _client_instance._headers.get("Authorization")  # 从内部获取认证头
+    if not auth_token:
+        # 理论上 ensure_authenticated 会处理，但作为保险
+        raise AuthenticationError("无法获取认证令牌，请重新认证。")
 
-            # 如果UC API失败，尝试Console API
-            data = {"policyName": policy_name}
-            if group_name:
-                data["groupName"] = group_name
+    headers = {
+        "Authorization": auth_token,
+        # 不需要 Content-Type，httpx 会自动生成
+    }
 
+    # 构造完整 URL
+    upload_path = "/apis/api.console.halo.run/v1alpha1/attachments/upload"
+    url = f"{_client_instance.base_url}{upload_path}"
+
+    logger.debug(f"Attempting direct httpx POST to {url} for file {filename}")
+    logger.debug(f"Headers (excluding auto Content-Type): {headers}")
+
+    # 使用独立的 httpx 客户端进行请求，并加入重试逻辑
+    retry_count = 0
+    # 从 settings 获取重试配置，如果 client 未初始化 settings，则使用默认值
+    max_retries = getattr(settings, "max_retries", 3)
+    retry_delay = getattr(settings, "retry_delay", 1.0)
+
+    async with httpx.AsyncClient(timeout=_client_instance.timeout) as http_client:
+        while retry_count <= max_retries:
             try:
-                response = await client.post(
-                    "/apis/api.console.halo.run/v1alpha1/attachments/upload",
-                    files=files,
-                    data=data,
-                )
-                logger.info(f"Successfully uploaded via Console API: {filename}")
-                return response
-            except Exception as console_error:
-                # 合并两次失败的详细信息，便于定位问题
-                raise HaloMCPError(
-                    f"Failed to upload attachment. UC error: {uc_error_obj}; Console error: {console_error}"
+                response = await http_client.post(
+                    url,
+                    files=files_data,
+                    headers=headers,
+                    follow_redirects=True,  # 保持与 BaseHTTPClient 一致
                 )
 
-    except Exception as e:
-        raise HaloMCPError(f"Failed to upload attachment: {e}")
+                # --- 状态码校验 ---
+                if 200 <= response.status_code < 300:
+                    # 成功
+                    logger.info(
+                        f"Successfully uploaded {filename} via Console API (status: {response.status_code})"
+                    )
+                    try:
+                        return response.json()
+                    except json.JSONDecodeError as json_err:
+                        logger.warning(
+                            f"Failed to decode JSON response from successful upload: {json_err}. Response text: {response.text[:200]}"
+                        )
+                        # 即使 JSON 解析失败，也认为上传操作本身成功了，返回文本内容
+                        return {"status": "success_but_no_json", "text": response.text}
+                    except Exception as parse_err:  # 捕获其他可能的解析错误
+                        logger.error(f"Unexpected error parsing response: {parse_err}")
+                        raise HaloMCPError(f"上传成功但解析响应失败: {parse_err}") from parse_err
+
+                elif response.status_code == 401:
+                    logger.error(f"Authentication failed (401) during upload to {url}")
+                    raise AuthenticationError("认证失败。请检查令牌或凭据。")
+                elif response.status_code == 403:
+                    logger.error(f"Authorization failed (403) during upload to {url}")
+                    raise AuthorizationError("权限不足。访问受限。")
+                elif response.status_code == 404:
+                    logger.error(f"Resource not found (404) during upload: {url}")
+                    raise ResourceNotFoundError("上传接口", upload_path)  # 使用 path
+                elif response.status_code >= 400:  # 其他客户端或服务器错误
+                    error_detail = response.text
+                    try:
+                        error_json = response.json()
+                        error_detail = (
+                            error_json.get("detail") or error_json.get("message") or error_detail
+                        )
+                    except Exception:
+                        pass
+                    logger.error(
+                        f"HTTP {response.status_code} error during upload to {url}: {error_detail}"
+                    )
+                    # 对于可重试的服务器错误 (5xx)，允许重试；客户端错误 (4xx，非 401/403/404) 不重试
+                    if response.status_code >= 500 and retry_count < max_retries:
+                        last_error = NetworkError(
+                            f"HTTP {response.status_code} 错误：{error_detail}",
+                            status_code=response.status_code,
+                        )
+                        # 进入重试逻辑
+                    else:
+                        raise NetworkError(
+                            f"HTTP {response.status_code} 错误：{error_detail}",
+                            status_code=response.status_code,
+                        )
+                else:
+                    # 未知状态码？理论上不应发生
+                    logger.warning(
+                        f"Unexpected status code {response.status_code} during upload to {url}"
+                    )
+                    last_error = NetworkError(
+                        f"未预期的状态码: {response.status_code}", status_code=response.status_code
+                    )
+                    # 进入重试逻辑
+
+            except (httpx.TimeoutException, httpx.ConnectError, httpx.NetworkError) as e:
+                last_error = e
+                logger.warning(f"Upload attempt {retry_count + 1} failed due to network issue: {e}")
+                # 进入重试逻辑
+
+            except (AuthenticationError, AuthorizationError, ResourceNotFoundError, NetworkError):
+                raise  # 这些是明确的错误，不需要重试，直接抛出
+
+            except Exception as e:
+                # 捕获 httpx.post 可能抛出的其他异常
+                last_error = e
+                logger.error(f"Unexpected error during httpx.post for upload: {e}", exc_info=True)
+                # 进入重试逻辑
+
+            # 重试逻辑
+            retry_count += 1
+            if retry_count <= max_retries:
+                logger.warning(
+                    f"Retrying upload ({retry_count}/{max_retries})... Last error: {last_error}"
+                )
+                await asyncio.sleep(retry_delay * (2 ** (retry_count - 1)))  # 指数退避
+            else:
+                logger.error(
+                    f"Upload failed after {max_retries} retries for {url}. Last error: {last_error}"
+                )
+                # 将最后一次的错误包装成 HaloMCPError 抛出
+                error_message = f"上传附件失败 (重试次数耗尽): {last_error}"
+                if isinstance(last_error, NetworkError):  # 如果最后是网络错误，保留状态码
+                    raise HaloMCPError(
+                        error_message, details={"status_code": last_error.status_code}
+                    ) from last_error
+                raise HaloMCPError(error_message) from last_error
+
+    # 如果所有重试都失败，上面的循环会抛出异常
+    # 理论上不会执行到这里
+    raise HaloMCPError(f"上传附件 {filename} 失败，未知原因。")
 
 
 async def upload_attachment_from_url(

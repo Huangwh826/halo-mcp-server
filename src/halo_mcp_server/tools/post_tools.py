@@ -137,13 +137,16 @@ async def list_my_posts_tool(client: HaloClient, args: Dict[str, Any]) -> str:
 
         logger.debug(f"正在列出文章：page={page}, size={size}")
 
-        result = await client.list_my_posts(
-            page=page,
-            size=size,
-            publish_phase=publish_phase,
-            keyword=keyword,
-            category=category,
-        )
+        params = {"page": page, "size": size}
+        if publish_phase:
+            params["publishPhase"] = publish_phase
+        if keyword:
+            params["keyword"] = keyword
+        if category:
+            params["categoryWithChildren"] = category
+
+        await client.ensure_authenticated()
+        result = await client.get("/apis/uc.api.content.halo.run/v1alpha1/posts", params=params)
 
         # 为了更好地可读性，对结果进行格式化
         posts = result.get("items", [])
@@ -213,7 +216,8 @@ async def get_post_tool(client: HaloClient, args: Dict[str, Any]) -> str:
         name = args.get("name")
         logger.debug(f"获取文章：{name}")
 
-        result = await client.get_post(name)
+        await client.ensure_authenticated()
+        result = await client.get(f"/apis/uc.api.content.halo.run/v1alpha1/posts/{name}")
         return json.dumps(result, ensure_ascii=False, indent=2)
 
     except Exception as e:
@@ -315,12 +319,16 @@ async def create_post_tool(client: HaloClient, args: Dict[str, Any]) -> str:
 
         logger.debug(f"正在创建文章：{title}")
 
-        result = await client.create_post(post_data)
+        await client.ensure_authenticated()
+        result = await client.post("/apis/api.console.halo.run/v1alpha1/posts", json=post_data)
         post_name = result.get("metadata", {}).get("name", "")
 
         # 若请求则立即发布
         if args.get("publish_immediately", False):
-            await client.publish_post(post_name)
+            await client.put(
+                f"/apis/api.console.halo.run/v1alpha1/posts/{post_name}/publish",
+                params={"async": "true"},
+            )
             success_result = ToolResult.success_result(
                 f"✓ 文章『{title}』创建并成功发布！",
                 data={"post_name": post_name, "published": True},
@@ -351,7 +359,8 @@ async def update_post_tool(client: HaloClient, args: Dict[str, Any]) -> str:
         has_content_update = "content" in args
 
         # 获取当前文章
-        post = await client.get_post(name)
+        await client.ensure_authenticated()
+        post = await client.get(f"/apis/uc.api.content.halo.run/v1alpha1/posts/{name}")
 
         # 更新元数据字段
         spec = post.get("spec", {})
@@ -387,14 +396,17 @@ async def update_post_tool(client: HaloClient, args: Dict[str, Any]) -> str:
         # 如有变更则更新元数据
         if metadata_updated:
             logger.debug(f"更新文章元数据：{name}")
-            await client.update_post(name, post)
+            await client.put(f"/apis/uc.api.content.halo.run/v1alpha1/posts/{name}", json=post)
 
         # 如提供内容则更新（需使用草稿 API）
         if has_content_update:
             logger.debug(f"更新文章内容：{name}")
 
             # 获取当前草稿
-            current_draft = await client.get_post_draft(name, patched=False)
+            current_draft = await client.get(
+                f"/apis/uc.api.content.halo.run/v1alpha1/posts/{name}/draft",
+                params={"patched": "false"},
+            )
 
             # 判定内容格式并渲染
             content = args["content"]
@@ -448,11 +460,17 @@ async def update_post_tool(client: HaloClient, args: Dict[str, Any]) -> str:
             }
 
             logger.debug(f"调用 update_post_draft 并设置 content-json 注解")
-            await client.update_post_draft(name, draft_data)
+            await client.put(
+                f"/apis/uc.api.content.halo.run/v1alpha1/posts/{name}/draft",
+                json=draft_data,
+            )
 
             # 重新发布以应用新内容
             logger.debug(f"重新发布文章以应用内容变更：{name}")
-            await client.publish_post(name)
+            await client.put(
+                f"/apis/api.console.halo.run/v1alpha1/posts/{name}/publish",
+                params={"async": "true"},
+            )
 
         success_result = ToolResult.success_result(
             f"✓ 文章『{name}』更新成功！"
@@ -478,7 +496,11 @@ async def publish_post_tool(client: HaloClient, args: Dict[str, Any]) -> str:
         name = args.get("name")
         logger.debug(f"正在发布文章：{name}")
 
-        await client.publish_post(name)
+        await client.ensure_authenticated()
+        await client.put(
+            f"/apis/api.console.halo.run/v1alpha1/posts/{name}/publish",
+            params={"async": "true"},
+        )
 
         success_result = ToolResult.success_result(
             f"✓ 文章『{name}』发布成功！", data={"post_name": name, "published": True}
@@ -502,7 +524,8 @@ async def unpublish_post_tool(client: HaloClient, args: Dict[str, Any]) -> str:
         name = args.get("name")
         logger.debug(f"正在取消发布文章：{name}")
 
-        await client.unpublish_post(name)
+        await client.ensure_authenticated()
+        await client.put(f"/apis/uc.api.content.halo.run/v1alpha1/posts/{name}/unpublish")
 
         success_result = ToolResult.success_result(
             f"✓ 文章『{name}』已取消发布！",
@@ -527,7 +550,8 @@ async def delete_post_tool(client: HaloClient, args: Dict[str, Any]) -> str:
         name = args.get("name")
         logger.debug(f"正在删除文章：{name}")
 
-        await client.delete_post(name)
+        await client.ensure_authenticated()
+        await client.delete(f"/apis/uc.api.content.halo.run/v1alpha1/posts/{name}/recycle")
 
         success_result = ToolResult.success_result(
             f"✓ 文章『{name}』删除成功！", data={"post_name": name, "deleted": True}
@@ -553,7 +577,11 @@ async def get_post_draft_tool(client: HaloClient, args: Dict[str, Any]) -> str:
 
         logger.debug(f"获取文章草稿：{name}")
 
-        result = await client.get_post_draft(name, patched)
+        await client.ensure_authenticated()
+        result = await client.get(
+            f"/apis/uc.api.content.halo.run/v1alpha1/posts/{name}/draft",
+            params={"patched": str(patched).lower()},
+        )
         return json.dumps(result, ensure_ascii=False, indent=2)
 
     except Exception as e:
@@ -576,7 +604,11 @@ async def update_post_draft_tool(client: HaloClient, args: Dict[str, Any]) -> st
         logger.debug(f"更新文章草稿：{name}")
 
         # 首先获取当前草稿
-        current_draft = await client.get_post_draft(name, patched=False)
+        await client.ensure_authenticated()
+        current_draft = await client.get(
+            f"/apis/uc.api.content.halo.run/v1alpha1/posts/{name}/draft",
+            params={"patched": "false"},
+        )
 
         # 判定内容格式并渲染
         content_format = (args.get("content_format") or "HTML").upper()
@@ -625,7 +657,10 @@ async def update_post_draft_tool(client: HaloClient, args: Dict[str, Any]) -> st
             },
         }
 
-        await client.update_post_draft(name, draft_data)
+        await client.put(
+            f"/apis/uc.api.content.halo.run/v1alpha1/posts/{name}/draft",
+            json=draft_data,
+        )
 
         success_result = ToolResult.success_result(
             f"✓ 文章草稿『{name}』更新成功！",

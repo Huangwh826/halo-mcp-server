@@ -275,3 +275,7 @@ class BaseHTTPClient:
     ) -> Dict[str, Any]:
         """DELETE 请求。"""
         return await self._request("DELETE", path, params=params, headers=headers)
+
+    @property
+    def headers(self):
+        return self._headers
