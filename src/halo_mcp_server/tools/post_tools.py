@@ -101,9 +101,9 @@ def _validate_post_params(args: Dict[str, Any], required_fields: list = None) ->
     if title and len(title) > 256:
         return ToolResult.error_result("错误：标题过长（最多 256 字符）")
 
-    content = args.get("content")
-    if content and len(content) > 100000:
-        return ToolResult.error_result("错误：内容过长（最多 100000 字符）")
+    # content = args.get("content")
+    # if content and len(content) > 100000:
+    #     return ToolResult.error_result("错误：内容过长（最多 100000 字符）")
 
     visible = args.get("visible")
     if visible and visible not in ["PUBLIC", "PRIVATE"]:
